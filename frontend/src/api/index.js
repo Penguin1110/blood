@@ -1,21 +1,31 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-export async function fetchDonors() {
-  const response = await fetch(`${API_URL}/donors`);
+async function fetchJson(path) {
+  const response = await fetch(`${API_URL}${path}`);
 
   if (!response.ok) {
-    throw new Error("Failed to fetch donors");
+    throw new Error(`Failed to fetch ${path}`);
   }
 
   return response.json();
 }
 
-export async function fetchBloodInventory() {
-  const response = await fetch(`${API_URL}/blood-inventory`);
+export function fetchHealth() {
+  return fetchJson("/health");
+}
 
-  if (!response.ok) {
-    throw new Error("Failed to fetch blood inventory");
-  }
+export function fetchUsers() {
+  return fetchJson("/users");
+}
 
-  return response.json();
+export function fetchDonations() {
+  return fetchJson("/donations");
+}
+
+export function fetchSites() {
+  return fetchJson("/sites");
+}
+
+export function fetchRewards() {
+  return fetchJson("/rewards");
 }

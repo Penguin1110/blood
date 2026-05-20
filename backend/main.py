@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import donations, health, rewards, sites, users
+from routers import auth, donations, health, rewards, sites, users
 
 app = FastAPI(title="Blood API")
 
@@ -14,6 +14,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(donations.router)
 app.include_router(sites.router)

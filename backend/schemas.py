@@ -1,43 +1,71 @@
+from datetime import date, time
+
 from pydantic import BaseModel
 
 
-class Donor(BaseModel):
-    id: int
-    name: str
-    blood_type: str
-    last_donation_date: str
-
-
-class BloodInventory(BaseModel):
-    blood_type: str
-    units: int
-
-
 class User(BaseModel):
-    id: int
+    donor_id: int
     name: str
+    gender: str
+    birthday: date
+    blood_type: str
+    phone: str
     email: str
-    blood_type: str
+    last_date: date | None = None
+    hold_points: int = 0
+    location: str
+    weight: float
+    drugs_record: str | None = None
 
 
-class Donation(BaseModel):
-    id: int
-    user_id: int
-    site_id: int
-    donation_date: str
-    blood_type: str
-    volume_ml: int
+class DonationRecord(BaseModel):
+    record_id: int
+    donor_id: int
+    donation_date: date
+    address: str
+    category: str
 
 
 class DonationSite(BaseModel):
-    id: int
-    name: str
+    site_id: int
+    loca_name: str
     address: str
-    city: str
+    open_time: time
+    category: str
 
 
-class Reward(BaseModel):
-    id: int
-    user_id: int
-    points: int
-    description: str
+class Gift(BaseModel):
+    gift_id: int
+    gift_item: str
+    needed_points: int
+
+
+class Transportation(BaseModel):
+    trans_id: int
+    site_id: int
+    location_id: int
+    trans_type: str
+
+
+class Search(BaseModel):
+    donor_id: int
+    site_id: int
+    gift_id: int
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    message: str
+    user: User
+
+
+class Donation(DonationRecord):
+    pass
+
+
+class Reward(Gift):
+    pass

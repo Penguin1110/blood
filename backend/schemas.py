@@ -2,7 +2,29 @@ from datetime import date, time
 
 from pydantic import BaseModel
 
+class UserCreate(BaseModel):
+    name: str
+    gender: str
+    birthday: date
+    blood_type: str
+    phone: str
+    email: str
+    location: str
+    weight: float
+    drugs_record: str | None = None
 
+class UserUpdate(BaseModel):
+    name: str | None = None
+    gender: str | None = None
+    birthday: date | None = None
+    blood_type: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    location: str | None = None
+    weight: float | None = None
+    drugs_record: str | None = None
+
+    
 class User(BaseModel):
     donor_id: int
     name: str

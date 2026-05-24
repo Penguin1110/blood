@@ -19,10 +19,6 @@ def login(payload: LoginRequest):
             phone,
             email,
             last_date,
-            hold_points,
-            location,
-            weight,
-            drugs_record,
             password_hash
         FROM `user`
         WHERE email = %s

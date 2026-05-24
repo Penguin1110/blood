@@ -18,11 +18,7 @@ def list_users():
             blood_type,
             phone,
             email,
-            last_date,
-            hold_points,
-            location,
-            weight,
-            drugs_record
+            last_date
         FROM `user`
         """
     )

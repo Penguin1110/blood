@@ -1,4 +1,4 @@
-from datetime import date, time
+from datetime import date, datetime, time
 
 from pydantic import BaseModel
 
@@ -12,10 +12,16 @@ class User(BaseModel):
     phone: str
     email: str
     last_date: date | None = None
-    hold_points: int = 0
-    location: str
+
+
+class HistoryLog(BaseModel):
+    log_id: int
+    donor_id: int
     weight: float
+    location: str
     drugs_record: str | None = None
+    hold_points: int = 0
+    recorded_at: datetime
 
 
 class DonationRecord(BaseModel):

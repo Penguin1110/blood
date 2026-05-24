@@ -9,8 +9,9 @@ class UserCreate(BaseModel):
     blood_type: str
     phone: str
     email: str
-    location: str
-    weight: float
+    password: str
+    weight: float | None = None
+    location: str | None = None
     drugs_record: str | None = None
 
 class UserUpdate(BaseModel):
@@ -20,9 +21,7 @@ class UserUpdate(BaseModel):
     blood_type: str | None = None
     phone: str | None = None
     email: str | None = None
-    location: str | None = None
-    weight: float | None = None
-    drugs_record: str | None = None
+    password: str | None = None
 
     
 class User(BaseModel):

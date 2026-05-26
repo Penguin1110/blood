@@ -64,9 +64,19 @@ class DonationRecord(BaseModel):
     record_id: int
     donor_id: int
     donation_date: date
-    address: str
+    address: str | None = None
     category: str
 
+class DonationRecordCreate(BaseModel):
+    donor_id: int
+    donation_date: date
+    address: str | None = None
+    category: str
+
+class DonationRecordUpdate(BaseModel):
+    donation_date: date | None = None
+    address: str | None = None
+    category: str | None = None
 
 class DonationSite(BaseModel):
     site_id: int

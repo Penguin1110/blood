@@ -25,8 +25,9 @@ class UserUpdate(BaseModel):
     phone: str | None = None
     email: str | None = None
     password: str | None = None
+    spent_points: int | None = None
 
-    
+
 class User(BaseModel):
     donor_id: int
     name: str
@@ -36,6 +37,7 @@ class User(BaseModel):
     phone: str
     email: str
     last_date: date | None = None
+    spent_points: int = 0
 
 
 class HistoryLog(BaseModel):

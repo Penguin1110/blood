@@ -44,12 +44,12 @@ def list_eligible_rewards(donor_id: int):
         """
         SELECT
             u.donor_id,
-            COALESCE(SUM(h.hold_points), 0) AS points
+            GREATEST(COALESCE(SUM(h.hold_points), 0) - u.spent_points, 0) AS current_points
         FROM `user` AS u
         LEFT JOIN history_log AS h
             ON h.donor_id = u.donor_id
         WHERE u.donor_id = %s
-        GROUP BY u.donor_id
+        GROUP BY u.donor_id, u.spent_points
         """,
         (donor_id,),
     )
@@ -70,7 +70,7 @@ def list_eligible_rewards(donor_id: int):
         WHERE needed_points <= %s
         ORDER BY needed_points ASC, gift_id ASC
         """,
-        (donor_points["points"],),
+        (donor_points["current_points"],),
     )
 
 

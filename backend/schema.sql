@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS `user` (
     phone VARCHAR(30),
     email VARCHAR(100) NOT NULL UNIQUE,
     last_date DATE,
-    password_hash VARCHAR(255) NOT NULL
+    password_hash VARCHAR(255) NOT NULL,
+    spent_points INT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS history_log (
@@ -95,3 +96,6 @@ CREATE TABLE IF NOT EXISTS search (
         ON UPDATE CASCADE
         ON DELETE CASCADE
 );
+
+-- Migration: add spent_points to existing databases
+ALTER TABLE `user` ADD COLUMN IF NOT EXISTS spent_points INT NOT NULL DEFAULT 0;

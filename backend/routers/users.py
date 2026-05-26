@@ -23,7 +23,8 @@ def list_users(
             blood_type,
             phone,
             email,
-            last_date
+            last_date,
+            spent_points
         FROM `user`
         ORDER BY donor_id
         LIMIT %s OFFSET %s
@@ -45,7 +46,8 @@ def get_user(donor_id: int):
             blood_type,
             phone,
             email,
-            last_date
+            last_date,
+            spent_points
         FROM `user`
         WHERE donor_id = %s
         """,
@@ -141,7 +143,7 @@ def update_user(donor_id: int, data: UserUpdate):
     if not user:
         raise HTTPException(status_code=404, detail="找不到使用者")
 
-    ALLOWED_FIELDS = {"name", "gender", "birthday", "blood_type", "phone", "email", "password_hash"}
+    ALLOWED_FIELDS = {"name", "gender", "birthday", "blood_type", "phone", "email", "password_hash", "spent_points"}
 
     fields = data.model_dump(exclude_unset=True)
 

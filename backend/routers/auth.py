@@ -53,6 +53,7 @@ def login(payload: LoginRequest):
             phone,
             email,
             last_date,
+            spent_points,
             password_hash
         FROM `user`
         WHERE email = %s

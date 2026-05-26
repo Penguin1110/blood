@@ -235,8 +235,12 @@ def search_nearby_sites(
     params: list = [lat_min, lat_max, lon_min, lon_max]
 
     if category:
-        conditions.append("category = %s")
-        params.append(category)
+        if category == "捐血站":
+            conditions.append("category IN (%s, %s)")
+            params.extend(["捐血站", "固定捐血點"])
+        else:
+            conditions.append("category = %s")
+            params.append(category)
 
     where_clause = "WHERE " + " AND ".join(conditions)
 
@@ -282,11 +286,5 @@ def search_nearby_sites(
         results.append(site)
 
     results.sort(key=lambda item: item["distance_km"])
-
-    if not results:
-        raise HTTPException(
-            status_code=404,
-            detail="找不到符合條件的捐血據點",
-        )
 
     return results

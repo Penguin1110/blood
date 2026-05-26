@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from database import fetch_all, fetch_one, get_connection
 from schemas import Donation, DonationRecord, DonationRecordCreate, DonationRecordUpdate
@@ -6,7 +6,10 @@ from schemas import Donation, DonationRecord, DonationRecordCreate, DonationReco
 router = APIRouter(prefix="/donations", tags=["donations"])
 
 @router.get("", response_model=list[Donation])
-def list_donations():
+def list_donations(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
     return fetch_all(
         """
         SELECT
@@ -16,19 +19,27 @@ def list_donations():
             address,
             category
         FROM donation_record
-        """
+        ORDER BY donation_date DESC, record_id DESC
+        LIMIT %s OFFSET %s
+        """,
+        (limit, offset),
     )
 
 @router.get("/user/{donor_id}", response_model=list[DonationRecord])
-def get_donation_records_by_user(donor_id: int):
+def get_donation_records_by_user(
+    donor_id: int,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
     records = fetch_all(
         """
         SELECT record_id, donor_id, donation_date, address, category
         FROM donation_record
         WHERE donor_id = %s
         ORDER BY donation_date DESC
+        LIMIT %s OFFSET %s
         """,
-        (donor_id,)
+        (donor_id, limit, offset),
     )
     return records
 
@@ -44,7 +55,7 @@ def get_donation_record(record_id: int):
     )
 
     if not record:
-        raise HTTPException(status_code=404, detail="Donation record not found")
+        raise HTTPException(status_code=404, detail="找不到捐血紀錄")
 
     return record
 
@@ -102,7 +113,7 @@ def update_donation_record(record_id: int, record: DonationRecordUpdate):
     )
 
     if not old_record:
-        raise HTTPException(status_code=404, detail="Donation record not found")
+        raise HTTPException(status_code=404, detail="找不到捐血紀錄")
 
     new_donation_date = record.donation_date if record.donation_date is not None else old_record["donation_date"]
     new_address = record.address if record.address is not None else old_record["address"]
@@ -157,7 +168,7 @@ def delete_donation_record(record_id: int):
     )
 
     if not old_record:
-        raise HTTPException(status_code=404, detail="Donation record not found")
+        raise HTTPException(status_code=404, detail="找不到捐血紀錄")
 
     donor_id = old_record["donor_id"]
 
@@ -183,4 +194,4 @@ def delete_donation_record(record_id: int):
 
             connection.commit()
 
-    return {"message": "Donation record deleted successfully"}
+    return {"message": "捐血紀錄刪除成功"}

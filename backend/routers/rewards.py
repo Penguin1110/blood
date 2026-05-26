@@ -57,7 +57,7 @@ def list_eligible_rewards(donor_id: int):
     if not donor_points:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Donor not found",
+            detail="找不到捐血者",
         )
 
     return fetch_all(
@@ -91,7 +91,7 @@ def get_reward(gift_id: int):
     if not reward:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Reward not found",
+            detail="找不到獎品",
         )
 
     return reward

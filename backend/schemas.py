@@ -1,12 +1,15 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+BloodType = Literal["A", "B", "AB", "O", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
 
 class UserCreate(BaseModel):
     name: str
     gender: str
     birthday: date
-    blood_type: str
+    blood_type: BloodType
     phone: str
     email: str
     password: str
@@ -18,7 +21,7 @@ class UserUpdate(BaseModel):
     name: str | None = None
     gender: str | None = None
     birthday: date | None = None
-    blood_type: str | None = None
+    blood_type: BloodType | None = None
     phone: str | None = None
     email: str | None = None
     password: str | None = None
@@ -29,7 +32,7 @@ class User(BaseModel):
     name: str
     gender: str
     birthday: date
-    blood_type: str
+    blood_type: BloodType
     phone: str
     email: str
     last_date: date | None = None
@@ -88,6 +91,16 @@ class DonationSite(BaseModel):
     close_time: time | None = None
     open_days: str | None = None
     category: str | None = None
+
+    @field_validator("open_time", "close_time", mode="before")
+    @classmethod
+    def coerce_timedelta_to_time(cls, v):
+        if isinstance(v, timedelta):
+            total = int(v.total_seconds())
+            h, rem = divmod(total, 3600)
+            m, s = divmod(rem, 60)
+            return time(h % 24, m, s)
+        return v
 
 
 class DonationSiteNearby(DonationSite):

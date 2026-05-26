@@ -68,5 +68,5 @@ def login(payload: LoginRequest):
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid email or password",
+        detail="Email 或密碼錯誤",
     )

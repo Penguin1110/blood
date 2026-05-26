@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from database import fetch_all, fetch_one, get_connection
 from schemas import HistoryLog, HistoryLogCreate, HistoryLogUpdate
@@ -29,7 +29,7 @@ def _ensure_user_exists(donor_id: int):
     )
 
     if not user:
-        raise HTTPException(status_code=404, detail="Donor not found")
+        raise HTTPException(status_code=404, detail="找不到捐血者")
 
 
 @router.get("/status")
@@ -38,7 +38,10 @@ def health_check():
 
 
 @router.get("", response_model=list[HistoryLog])
-def list_health_logs():
+def list_health_logs(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
     return fetch_all(
         """
         SELECT
@@ -51,12 +54,18 @@ def list_health_logs():
             recorded_at
         FROM history_log
         ORDER BY recorded_at DESC, log_id DESC
-        """
+        LIMIT %s OFFSET %s
+        """,
+        (limit, offset),
     )
 
 
 @router.get("/donor/{donor_id}", response_model=list[HistoryLog])
-def list_health_logs_by_donor(donor_id: int):
+def list_health_logs_by_donor(
+    donor_id: int,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
     _ensure_user_exists(donor_id)
 
     return fetch_all(
@@ -72,8 +81,9 @@ def list_health_logs_by_donor(donor_id: int):
         FROM history_log
         WHERE donor_id = %s
         ORDER BY recorded_at DESC, log_id DESC
+        LIMIT %s OFFSET %s
         """,
-        (donor_id,),
+        (donor_id, limit, offset),
     )
 
 
@@ -85,7 +95,7 @@ def get_health_log(log_id: int):
     )
 
     if not log:
-        raise HTTPException(status_code=404, detail="Health log not found")
+        raise HTTPException(status_code=404, detail="找不到健康紀錄")
 
     return log
 
@@ -133,14 +143,20 @@ def update_health_log(log_id: int, data: HistoryLogUpdate):
     )
 
     if not log:
-        raise HTTPException(status_code=404, detail="Health log not found")
+        raise HTTPException(status_code=404, detail="找不到健康紀錄")
+
+    ALLOWED_FIELDS = {"weight", "location", "drugs_record", "hold_points"}
 
     fields = data.model_dump(exclude_unset=True)
 
     if not fields:
-        raise HTTPException(status_code=400, detail="No fields to update")
+        raise HTTPException(status_code=400, detail="沒有提供更新資料")
 
-    set_clause = ", ".join(f"{key} = %s" for key in fields)
+    invalid = set(fields) - ALLOWED_FIELDS
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Invalid fields: {invalid}")
+
+    set_clause = ", ".join(f"`{key}` = %s" for key in fields)
     values = list(fields.values())
     values.append(log_id)
 
@@ -173,6 +189,6 @@ def delete_health_log(log_id: int):
             connection.commit()
 
             if cursor.rowcount == 0:
-                raise HTTPException(status_code=404, detail="Health log not found")
+                raise HTTPException(status_code=404, detail="找不到健康紀錄")
 
-    return {"message": "Health log deleted"}
+    return {"message": "健康紀錄刪除成功"}

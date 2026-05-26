@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from database import fetch_all, fetch_one, get_connection
+from routers.auth import hash_password
 from schemas import User, UserCreate, UserUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -8,7 +9,10 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 # 查詢全部使用者
 @router.get("", response_model=list[User])
-def list_users():
+def list_users(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
     return fetch_all(
         """
         SELECT
@@ -21,7 +25,10 @@ def list_users():
             email,
             last_date
         FROM `user`
-        """
+        ORDER BY donor_id
+        LIMIT %s OFFSET %s
+        """,
+        (limit, offset),
     )
 
 
@@ -86,7 +93,7 @@ def create_user(data: UserCreate):
                         data.blood_type,
                         data.phone,
                         data.email,
-                        data.password
+                        hash_password(data.password)
                     )
                 )
 
@@ -118,9 +125,9 @@ def create_user(data: UserCreate):
                     "donor_id": new_donor_id
                 }
 
-            except Exception as e:
+            except Exception:
                 connection.rollback()
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="使用者新增失敗，請稍後再試")
 
 
 # 更新使用者基本資料
@@ -134,15 +141,21 @@ def update_user(donor_id: int, data: UserUpdate):
     if not user:
         raise HTTPException(status_code=404, detail="找不到使用者")
 
+    ALLOWED_FIELDS = {"name", "gender", "birthday", "blood_type", "phone", "email", "password_hash"}
+
     fields = data.model_dump(exclude_unset=True)
 
     if not fields:
         raise HTTPException(status_code=400, detail="沒有提供更新資料")
 
     if "password" in fields:
-        fields["password_hash"] = fields.pop("password")
+        fields["password_hash"] = hash_password(fields.pop("password"))
 
-    set_clause = ", ".join(f"{key} = %s" for key in fields)
+    invalid = set(fields) - ALLOWED_FIELDS
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"不允許的欄位：{invalid}")
+
+    set_clause = ", ".join(f"`{key}` = %s" for key in fields)
 
     values = list(fields.values())
     values.append(donor_id)

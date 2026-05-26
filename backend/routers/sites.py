@@ -1,5 +1,5 @@
-from datetime import datetime, time
-from math import radians, sin, cos, asin, sqrt
+from datetime import datetime, time, timedelta
+from math import cos, radians, asin, sin, sqrt
 from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Query
@@ -110,10 +110,24 @@ def build_navigation_url(address: str) -> str:
     return f"https://www.google.com/maps/search/?api=1&query={encoded_address}"
 
 
+def _to_time(v) -> time | None:
+    if v is None:
+        return None
+    if isinstance(v, timedelta):
+        total = int(v.total_seconds())
+        h, rem = divmod(total, 3600)
+        m, s = divmod(rem, 60)
+        return time(h % 24, m, s)
+    return v
+
+
 def site_row_to_response(row: dict, distance_km: float | None = None) -> dict:
+    open_time = _to_time(row.get("open_time"))
+    close_time = _to_time(row.get("close_time"))
+
     is_open = check_is_open(
-        row.get("open_time"),
-        row.get("close_time"),
+        open_time,
+        close_time,
         row.get("open_days"),
     )
 
@@ -121,8 +135,8 @@ def site_row_to_response(row: dict, distance_km: float | None = None) -> dict:
         "site_id": row["site_id"],
         "loca_name": row["loca_name"],
         "address": row["address"],
-        "open_time": row.get("open_time"),
-        "close_time": row.get("close_time"),
+        "open_time": open_time,
+        "close_time": close_time,
         "open_days": row.get("open_days"),
         "category": row.get("category"),
         "latitude": float(row["latitude"]) if row.get("latitude") is not None else None,
@@ -208,12 +222,23 @@ def search_nearby_sites(
     Example:
     /sites/nearby?latitude=25.033964&longitude=121.564468&radius_km=5&open_only=true
     """
-    params = []
-    category_filter = ""
+    # Bounding box pre-filter: 1° latitude ≈ 111.32 km
+    lat_delta = radius_km / 111.32
+    lon_delta = radius_km / (111.32 * cos(radians(latitude)))
+    lat_min, lat_max = latitude - lat_delta, latitude + lat_delta
+    lon_min, lon_max = longitude - lon_delta, longitude + lon_delta
+
+    conditions = [
+        "latitude BETWEEN %s AND %s",
+        "longitude BETWEEN %s AND %s",
+    ]
+    params: list = [lat_min, lat_max, lon_min, lon_max]
 
     if category:
-        category_filter = "WHERE category = %s"
+        conditions.append("category = %s")
         params.append(category)
+
+    where_clause = "WHERE " + " AND ".join(conditions)
 
     rows = fetch_all(
         f"""
@@ -228,7 +253,7 @@ def search_nearby_sites(
             open_days,
             category
         FROM donation_site
-        {category_filter}
+        {where_clause}
         """,
         tuple(params),
     )

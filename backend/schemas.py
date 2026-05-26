@@ -1,6 +1,6 @@
 from datetime import date, datetime, time
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class UserCreate(BaseModel):
     name: str
@@ -80,6 +80,16 @@ class Gift(BaseModel):
     gift_id: int
     gift_item: str
     needed_points: int
+
+
+class GiftCreate(BaseModel):
+    gift_item: str = Field(min_length=1, max_length=100)
+    needed_points: int = Field(ge=0)
+
+
+class GiftUpdate(BaseModel):
+    gift_item: str = Field(min_length=1, max_length=100)
+    needed_points: int = Field(ge=0)
 
 
 class Transportation(BaseModel):

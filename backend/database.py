@@ -55,3 +55,11 @@ def fetch_one(query, params=None):
         with connection.cursor() as cursor:
             cursor.execute(query, params)
             return cursor.fetchone()
+
+
+def execute(query, params=None):
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, params)
+            connection.commit()
+            return cursor.lastrowid

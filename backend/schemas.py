@@ -65,13 +65,13 @@ class DonationRecord(BaseModel):
     donor_id: int
     donation_date: date
     address: str | None = None
-    category: str
+    category: str | None = None
 
 class DonationRecordCreate(BaseModel):
     donor_id: int
     donation_date: date
     address: str | None = None
-    category: str
+    category: str | None = None
 
 class DonationRecordUpdate(BaseModel):
     donation_date: date | None = None
@@ -82,8 +82,18 @@ class DonationSite(BaseModel):
     site_id: int
     loca_name: str
     address: str
-    open_time: time
-    category: str
+    latitude: float | None = None
+    longitude: float | None = None
+    open_time: time | None = None
+    close_time: time | None = None
+    open_days: str | None = None
+    category: str | None = None
+
+
+class DonationSiteNearby(DonationSite):
+    is_open: bool
+    navigation_url: str
+    distance_km: float | None = None
 
 
 class Gift(BaseModel):

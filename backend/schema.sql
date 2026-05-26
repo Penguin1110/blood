@@ -35,7 +35,11 @@ CREATE TABLE IF NOT EXISTS donation_site (
     site_id INT PRIMARY KEY AUTO_INCREMENT,
     loca_name VARCHAR(100) NOT NULL,
     address VARCHAR(255) NOT NULL,
+    latitude DECIMAL(10, 7),
+    longitude DECIMAL(10, 7),
     open_time TIME,
+    close_time TIME,
+    open_days VARCHAR(20),
     category VARCHAR(50)
 );
 

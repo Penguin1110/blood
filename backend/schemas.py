@@ -38,11 +38,26 @@ class User(BaseModel):
 class HistoryLog(BaseModel):
     log_id: int
     donor_id: int
-    weight: float
-    location: str
+    weight: float | None = None
+    location: str | None = None
     drugs_record: str | None = None
     hold_points: int = 0
     recorded_at: datetime
+
+
+class HistoryLogCreate(BaseModel):
+    donor_id: int
+    weight: float | None = None
+    location: str | None = None
+    drugs_record: str | None = None
+    hold_points: int = 0
+
+
+class HistoryLogUpdate(BaseModel):
+    weight: float | None = None
+    location: str | None = None
+    drugs_record: str | None = None
+    hold_points: int | None = None
 
 
 class DonationRecord(BaseModel):

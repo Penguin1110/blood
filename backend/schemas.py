@@ -77,13 +77,20 @@ class DonationRecordUpdate(BaseModel):
     donation_date: date | None = None
     address: str | None = None
     category: str | None = None
-
+# ...existing code...
 class DonationSite(BaseModel):
     site_id: int
-    loca_name: str
+    name: str
     address: str
-    open_time: time
-    category: str
+    lat: float
+    lng: float
+    phone: str | None = None
+    # ...其他欄位...
+# ...existing code...
+
+# 把 alias 放在 class 定義之後
+DonationSiteNearby = DonationSite
+# ...existing code...
 
 
 class Gift(BaseModel):
@@ -131,3 +138,5 @@ class Donation(DonationRecord):
 
 class Reward(Gift):
     pass
+
+

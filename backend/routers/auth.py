@@ -10,6 +10,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 PASSWORD_HASH_ITERATIONS = 100_000
 
+#test
 
 def hash_password(password: str) -> str:
     salt = secrets.token_hex(16)

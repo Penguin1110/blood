@@ -2,6 +2,7 @@ import { Heart, Activity, Users, ArrowRight, Gift, CalendarHeart, Award } from "
 import { Link } from "react-router";
 import { motion } from "motion/react";
 import { useAuth } from "@/context/AuthContext";
+import bloodDonationCarImage from "./blood donation carImage.png";
 
 export function Home() {
   const { user } = useAuth();
@@ -64,7 +65,7 @@ export function Home() {
             >
               <div className="aspect-square rounded-[3rem] overflow-hidden shadow-2xl border-8 border-white bg-white relative">
                 <img
-                  src="https://images.unsplash.com/photo-1585842378054-ee2e52f94ba2?w=1080&q=80"
+                  src={bloodDonationCarImage}
                   alt="護理師與捐血者"
                   className="w-full h-full object-cover"
                 />

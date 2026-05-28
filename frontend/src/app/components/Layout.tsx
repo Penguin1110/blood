@@ -45,7 +45,7 @@ export function Layout() {
                   <Heart className="h-7 w-7 fill-white" />
                 </motion.div>
                 <span className="font-extrabold text-2xl tracking-tight text-slate-800 ml-1">
-                  滴滴<span className="text-rose-500">愛心</span>
+                  血中紅我都吃<span className="text-rose-500">BLOOD</span>
                 </span>
               </Link>
             </div>

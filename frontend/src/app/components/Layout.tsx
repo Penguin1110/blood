@@ -1,12 +1,11 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
-import { Heart, Menu, X, User, Award, LogOut, Activity, ChevronDown } from "lucide-react";
+import { Heart, Menu, X, User, Award, LogOut } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/context/AuthContext";
 
 export function Layout() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -14,9 +13,11 @@ export function Layout() {
   const navLinks = [
     { name: "首頁", path: "/" },
     { name: "尋找據點", path: "/locations" },
+    { name: "健康 & 捐血", path: "/records" },
+    { name: "獎勵任務", path: "/rewards" },
     { name: "捐血須知", path: "/eligibility" },
     { name: "流程介紹", path: "/process" },
-    { name: "獎勵任務", path: "/rewards" },
+    { name: "個人資訊", path: "/profile" },
   ];
 
   const isActive = (path: string) => {
@@ -70,52 +71,6 @@ export function Layout() {
 
               {user ? (
                 <>
-                  {/* User dropdown */}
-                  <div
-                    className="relative"
-                    onMouseEnter={() => setShowProfileMenu(true)}
-                    onMouseLeave={() => setShowProfileMenu(false)}
-                  >
-                    <button className="flex items-center gap-2 bg-slate-100 text-slate-700 p-2 pr-3 rounded-full font-bold text-sm hover:bg-slate-200 transition-colors shadow-sm">
-                      <div className="bg-white p-1 rounded-full shadow-sm">
-                        <User className="h-5 w-5 text-slate-500" />
-                      </div>
-                      <span>{user.name}</span>
-                      <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-                    </button>
-                    <AnimatePresence>
-                      {showProfileMenu && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -6 }}
-                          transition={{ duration: 0.12 }}
-                          className="absolute right-0 top-full mt-1 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 w-48 z-50"
-                        >
-                          <Link
-                            to="/profile"
-                            onClick={() => setShowProfileMenu(false)}
-                            className={`flex items-center gap-2.5 px-4 py-2.5 font-bold text-sm transition-colors ${
-                              location.pathname === "/profile" ? "text-rose-600 bg-rose-50" : "text-slate-700 hover:bg-slate-50"
-                            }`}
-                          >
-                            <User className="h-4 w-4 text-slate-400" />
-                            個人資訊
-                          </Link>
-                          <Link
-                            to="/records"
-                            onClick={() => setShowProfileMenu(false)}
-                            className={`flex items-center gap-2.5 px-4 py-2.5 font-bold text-sm transition-colors ${
-                              location.pathname === "/records" ? "text-rose-600 bg-rose-50" : "text-slate-700 hover:bg-slate-50"
-                            }`}
-                          >
-                            <Activity className="h-4 w-4 text-slate-400" />
-                            健康 & 捐血
-                          </Link>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
                   <button
                     onClick={handleLogout}
                     className="flex items-center gap-1 text-slate-400 hover:text-rose-500 text-sm font-bold transition-colors"
@@ -190,24 +145,6 @@ export function Layout() {
                   <>
                     <div className="mt-4 border-t border-slate-100 pt-3">
                       <p className="text-xs font-bold text-slate-400 px-2 mb-2">{user.name}</p>
-                      <Link
-                        to="/profile"
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-base ${
-                          location.pathname === "/profile" ? "text-rose-600 bg-rose-50" : "text-slate-600 hover:bg-slate-50"
-                        }`}
-                        onClick={() => setIsMenuOpen(false)}
-                      >
-                        <User className="h-5 w-5" /> 個人資訊
-                      </Link>
-                      <Link
-                        to="/records"
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-base ${
-                          location.pathname === "/records" ? "text-rose-600 bg-rose-50" : "text-slate-600 hover:bg-slate-50"
-                        }`}
-                        onClick={() => setIsMenuOpen(false)}
-                      >
-                        <Activity className="h-5 w-5" /> 健康 & 捐血紀錄
-                      </Link>
                     </div>
                     <button
                       onClick={handleLogout}

@@ -7,6 +7,7 @@ BloodType = Literal["A", "B", "AB", "O", "A+", "A-", "B+", "B-", "AB+", "AB-", "
 
 class UserCreate(BaseModel):
     name: str
+    nickname: str
     gender: str
     birthday: date
     blood_type: BloodType
@@ -19,6 +20,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     name: str | None = None
+    nickname: str | None = None
     gender: str | None = None
     birthday: date | None = None
     blood_type: BloodType | None = None
@@ -31,6 +33,7 @@ class UserUpdate(BaseModel):
 class User(BaseModel):
     donor_id: int
     name: str
+    nickname: str | None = None
     gender: str
     birthday: date
     blood_type: BloodType
@@ -79,6 +82,7 @@ class DonationRecordCreate(BaseModel):
     category: str | None = None
 
 class DonationRecordUpdate(BaseModel):
+    donor_id: int | None = None
     donation_date: date | None = None
     address: str | None = None
     category: str | None = None
@@ -92,6 +96,7 @@ class DonationSite(BaseModel):
     open_time: time | None = None
     close_time: time | None = None
     open_days: str | None = None
+    hours_note: str | None = None
     category: str | None = None
 
     @field_validator("open_time", "close_time", mode="before")
@@ -150,9 +155,33 @@ class LoginResponse(BaseModel):
     user: User
 
 
+class Admin(BaseModel):
+    admin_id: int
+    username: str
+    display_name: str
+
+
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AdminLoginResponse(BaseModel):
+    message: str
+    admin: Admin
+
+
 class Donation(DonationRecord):
     pass
 
 
 class Reward(Gift):
     pass
+
+
+class DonorRanking(BaseModel):
+    rank: int
+    donor_id: int
+    nickname: str
+    cumulative_points: int
+    current_points: int

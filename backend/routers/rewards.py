@@ -1,9 +1,36 @@
 from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from database import execute, fetch_all, fetch_one
-from schemas import GiftCreate, GiftUpdate, Reward
+from schemas import DonorRanking, GiftCreate, GiftUpdate, Reward
 
 router = APIRouter(prefix="/rewards", tags=["rewards"])
+
+
+@router.get("/leaderboard", response_model=list[DonorRanking])
+def list_donor_leaderboard(
+    limit: int = Query(default=5, ge=1, le=20),
+):
+    rows = fetch_all(
+        """
+        SELECT
+            donor_id,
+            nickname,
+            cumulative_points,
+            current_points
+        FROM donor_points_summary
+        ORDER BY cumulative_points DESC, current_points DESC, donor_id ASC
+        LIMIT %s
+        """,
+        (limit,),
+    )
+
+    return [
+        {
+            "rank": idx + 1,
+            **row,
+        }
+        for idx, row in enumerate(rows)
+    ]
 
 
 @router.get("", response_model=list[Reward])

@@ -73,6 +73,11 @@ export function SiteMap({ sites }: Props) {
               ? `<p style="font-size:12px;color:#64748b;margin:4px 0 0">${(site.open_time ?? "").slice(0, 5)} – ${(site.close_time ?? "").slice(0, 5)}</p>`
               : ""
           }
+          ${
+            site.hours_note
+              ? `<p style="font-size:12px;color:#64748b;margin:4px 0 0">${site.hours_note}</p>`
+              : ""
+          }
           <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
             site.address
           )}" target="_blank" rel="noopener noreferrer"

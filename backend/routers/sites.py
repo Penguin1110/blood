@@ -101,6 +101,26 @@ def check_is_open(
     return current_clock >= open_time or current_clock <= close_time
 
 
+def check_available_at(
+    open_time: time | None,
+    close_time: time | None,
+    target_time: time | None,
+) -> bool:
+    """
+    判斷指定時間是否落在固定營業時間內。
+    沒有固定時間的據點（例如依每日公告）不列入指定時間篩選結果。
+    """
+    if target_time is None:
+        return True
+    if open_time is None or close_time is None:
+        return False
+
+    if open_time <= close_time:
+        return open_time <= target_time <= close_time
+
+    return target_time >= open_time or target_time <= close_time
+
+
 def build_navigation_url(address: str) -> str:
     """
     產生 Google Maps 搜尋連結。
@@ -138,6 +158,7 @@ def site_row_to_response(row: dict, distance_km: float | None = None) -> dict:
         "open_time": open_time,
         "close_time": close_time,
         "open_days": row.get("open_days"),
+        "hours_note": row.get("hours_note"),
         "category": row.get("category"),
         "latitude": float(row["latitude"]) if row.get("latitude") is not None else None,
         "longitude": float(row["longitude"]) if row.get("longitude") is not None else None,
@@ -154,7 +175,9 @@ def site_row_to_response(row: dict, distance_km: float | None = None) -> dict:
 
 
 @router.get("", response_model=list[DonationSite])
-def list_sites():
+def list_sites(
+    available_at: time | None = Query(None, description="指定時間篩選，格式 HH:MM"),
+):
     """
     讀取所有捐血站與捐血車資料。
     """
@@ -169,11 +192,24 @@ def list_sites():
             open_time,
             close_time,
             open_days,
+            hours_note,
             category
         FROM donation_site
         ORDER BY site_id
         """
     )
+
+    if available_at is None:
+        return rows
+
+    results = []
+    for row in rows:
+        open_time = _to_time(row.get("open_time"))
+        close_time = _to_time(row.get("close_time"))
+        if check_available_at(open_time, close_time, available_at):
+            results.append(row)
+
+    return results
 
 
 @router.get("/open", response_model=list[DonationSiteNearby])
@@ -192,6 +228,7 @@ def list_open_sites():
             open_time,
             close_time,
             open_days,
+            hours_note,
             category
         FROM donation_site
         ORDER BY site_id
@@ -215,6 +252,7 @@ def search_nearby_sites(
     radius_km: float = Query(5.0, gt=0, le=100, description="搜尋半徑，單位公里"),
     open_only: bool = Query(False, description="是否只顯示目前開放中的據點"),
     category: str | None = Query(None, description="捐血站或捐血車"),
+    available_at: time | None = Query(None, description="指定時間篩選，格式 HH:MM"),
 ):
     """
     根據使用者定位查詢附近捐血據點。
@@ -255,6 +293,7 @@ def search_nearby_sites(
             open_time,
             close_time,
             open_days,
+            hours_note,
             category
         FROM donation_site
         {where_clause}
@@ -281,6 +320,13 @@ def search_nearby_sites(
         site = site_row_to_response(row, distance_km=distance_km)
 
         if open_only and not site["is_open"]:
+            continue
+
+        if available_at is not None and not check_available_at(
+            _to_time(row.get("open_time")),
+            _to_time(row.get("close_time")),
+            available_at,
+        ):
             continue
 
         results.append(site)

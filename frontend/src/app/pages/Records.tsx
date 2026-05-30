@@ -1,30 +1,16 @@
 import { useState, useEffect, type FormEvent, type ChangeEvent } from "react";
 import {
-  Activity, FileText, Save, AlertCircle, LogIn, Droplets, Plus, Trash2, X,
+  Activity, FileText, Save, AlertCircle, LogIn, Droplets, Trash2, X,
+  CheckCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Link } from "react-router";
 import {
-  getUser,
   getHealthLogsByDonor, createHealthLog, updateHealthLog, deleteHealthLog,
-  getDonationsByUser, createDonation, deleteDonation,
+  getDonationsByUser,
   type HistoryLog, type DonationRecord,
 } from "@/api";
 import { useAuth } from "@/context/AuthContext";
-
-// ── Points ────────────────────────────────────────────────────────────────────
-
-function pointsForCategory(category: string): number {
-  switch (category) {
-    case "血小板":
-    case "血小板血漿":
-      return 60;
-    case "血漿":
-      return 40;
-    default:
-      return 50; // 全血 or unspecified
-  }
-}
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
@@ -32,12 +18,6 @@ interface HealthEdit {
   drugs_record: string;
   location: string;
   weight: string;
-}
-
-interface DonationForm {
-  donation_date: string;
-  address: string;
-  category: string;
 }
 
 function validateHealth(f: HealthEdit) {
@@ -48,14 +28,6 @@ function validateHealth(f: HealthEdit) {
     else if (w < 30 || w > 300) errors.weight = "體重需介於 30 ~ 300 公斤";
   }
   if (f.location.length > 100) errors.location = "旅遊史不得超過 100 字";
-  return errors;
-}
-
-function validateDonation(f: DonationForm) {
-  const errors: Record<string, string> = {};
-  if (!f.donation_date) errors.donation_date = "請選擇捐血日期";
-  else if (new Date(f.donation_date) > new Date()) errors.donation_date = "日期不得為未來";
-  if (f.address.length > 200) errors.address = "地址不得超過 200 字";
   return errors;
 }
 
@@ -79,31 +51,23 @@ function ErrMsg({ msg }: { msg?: string }) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function Records() {
-  const { user: authUser, setUser: setAuthUser } = useAuth();
+  const { user: authUser } = useAuth();
 
   const [healthLogs, setHealthLogs] = useState<HistoryLog[]>([]);
   const [donations, setDonations] = useState<DonationRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingHealth, setIsSavingHealth] = useState(false);
-  const [isSavingDonation, setIsSavingDonation] = useState(false);
   const [deletingHealthId, setDeletingHealthId] = useState<number | null>(null);
-  const [deletingDonationId, setDeletingDonationId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
   const [isEditingHealth, setIsEditingHealth] = useState(false);
-  const [isAddingDonation, setIsAddingDonation] = useState(false);
   const [showNoHealthNotice, setShowNoHealthNotice] = useState(false);
 
   const [healthForm, setHealthForm] = useState<HealthEdit>({
     drugs_record: "", location: "", weight: "",
   });
   const [healthErrors, setHealthErrors] = useState<Record<string, string>>({});
-
-  const [donationForm, setDonationForm] = useState<DonationForm>({
-    donation_date: "", address: "", category: "",
-  });
-  const [donationErrors, setDonationErrors] = useState<Record<string, string>>({});
 
   const latestLog = healthLogs[0] ?? null;
 
@@ -171,12 +135,6 @@ export function Records() {
     if (healthErrors[name]) setHealthErrors((p) => ({ ...p, [name]: "" }));
   };
 
-  const handleDonationChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setDonationForm((p) => ({ ...p, [name]: value }));
-    if (donationErrors[name]) setDonationErrors((p) => ({ ...p, [name]: "" }));
-  };
-
   const handleSaveHealth = async (e: FormEvent) => {
     e.preventDefault();
     const errs = validateHealth(healthForm);
@@ -232,71 +190,6 @@ export function Records() {
     }
   };
 
-  const handleAddDonation = async (e: FormEvent) => {
-    e.preventDefault();
-    const errs = validateDonation(donationForm);
-    if (Object.keys(errs).length > 0) { setDonationErrors(errs); return; }
-    setIsSavingDonation(true);
-    setError("");
-    try {
-      await createDonation({
-        donor_id: authUser.donor_id,
-        donation_date: donationForm.donation_date,
-        ...(donationForm.address ? { address: donationForm.address } : {}),
-        ...(donationForm.category ? { category: donationForm.category } : {}),
-      });
-
-      // Award points to the most recent health log
-      const pts = pointsForCategory(donationForm.category);
-      const currentLogs = healthLogs.length > 0 ? healthLogs : await getHealthLogsByDonor(authUser.donor_id);
-      if (currentLogs.length > 0) {
-        await updateHealthLog(currentLogs[0].log_id, {
-          hold_points: currentLogs[0].hold_points + pts,
-        });
-      } else {
-        await createHealthLog({ donor_id: authUser.donor_id, hold_points: pts });
-      }
-
-      const [dons, refreshedLogs, refreshed] = await Promise.all([
-        getDonationsByUser(authUser.donor_id),
-        getHealthLogsByDonor(authUser.donor_id),
-        getUser(authUser.donor_id),
-      ]);
-      setDonations(dons);
-      setHealthLogs(refreshedLogs);
-      setAuthUser(refreshed);
-      setDonationForm({ donation_date: "", address: "", category: "" });
-      setIsAddingDonation(false);
-      setSuccessMsg(`捐血紀錄已新增，獲得 ${pts} 點！`);
-      setTimeout(() => setSuccessMsg(""), 4000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "新增失敗，請稍後再試");
-    } finally {
-      setIsSavingDonation(false);
-    }
-  };
-
-  const handleDeleteDonation = async (record_id: number) => {
-    if (!confirm("確定要刪除此捐血紀錄？")) return;
-    setDeletingDonationId(record_id);
-    setError("");
-    try {
-      await deleteDonation(record_id);
-      const [dons, refreshed] = await Promise.all([
-        getDonationsByUser(authUser.donor_id),
-        getUser(authUser.donor_id),
-      ]);
-      setDonations(dons);
-      setAuthUser(refreshed);
-      setSuccessMsg("捐血紀錄已刪除");
-      setTimeout(() => setSuccessMsg(""), 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "刪除失敗，請稍後再試");
-    } finally {
-      setDeletingDonationId(null);
-    }
-  };
-
   return (
     <div className="py-12 bg-rose-50/30 min-h-screen">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -312,8 +205,9 @@ export function Records() {
           </div>
         )}
         {successMsg && (
-          <div className="mb-6 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-2xl px-4 py-3 font-medium">
-            ✓ {successMsg}
+          <div className="mb-6 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-2xl px-4 py-3 font-medium flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 flex-shrink-0" />
+            {successMsg}
           </div>
         )}
 
@@ -474,86 +368,16 @@ export function Records() {
               <Droplets className="h-5 w-5 text-rose-500" /> 捐血紀錄
               <span className="text-sm font-bold text-slate-400">（共 {donations.length} 筆）</span>
             </h2>
-            {!isAddingDonation ? (
-              <button
-                onClick={() => setIsAddingDonation(true)}
-                className="flex items-center gap-1 bg-rose-500 text-white font-bold px-4 py-2 rounded-xl hover:bg-rose-600 transition-colors text-sm shadow-sm"
-              >
-                <Plus className="h-4 w-4" /> 新增紀錄
-              </button>
-            ) : (
-              <button
-                onClick={() => { setIsAddingDonation(false); setDonationErrors({}); setDonationForm({ donation_date: "", address: "", category: "" }); }}
-                className="text-slate-400 font-bold hover:bg-slate-50 px-3 py-1.5 rounded-xl text-sm"
-              >
-                取消
-              </button>
-            )}
+            <span className="text-xs font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-xl">
+              由管理員審核維護
+            </span>
           </div>
-
-          <AnimatePresence>
-            {isAddingDonation && (
-              <motion.form
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                onSubmit={handleAddDonation}
-                className="mb-6 bg-rose-50 border border-rose-100 rounded-2xl p-5 space-y-4 overflow-hidden"
-              >
-                <h3 className="font-bold text-slate-700">新增捐血紀錄</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">捐血日期 *</label>
-                    <input
-                      type="date"
-                      name="donation_date"
-                      value={donationForm.donation_date}
-                      onChange={handleDonationChange}
-                      max={new Date().toISOString().split("T")[0]}
-                      className={inputCls(donationErrors.donation_date)}
-                    />
-                    <ErrMsg msg={donationErrors.donation_date} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">捐血類型</label>
-                    <select name="category" value={donationForm.category} onChange={handleDonationChange} className={inputCls()}>
-                      <option value="">請選擇（選填）</option>
-                      <option value="全血">全血</option>
-                      <option value="血小板">血小板</option>
-                      <option value="血漿">血漿</option>
-                      <option value="血小板血漿">血小板血漿</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">地點</label>
-                    <input
-                      name="address"
-                      value={donationForm.address}
-                      onChange={handleDonationChange}
-                      className={inputCls(donationErrors.address)}
-                      placeholder="捐血地點（選填）"
-                      maxLength={200}
-                    />
-                    <ErrMsg msg={donationErrors.address} />
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  disabled={isSavingDonation}
-                  className="bg-rose-500 text-white font-bold px-5 py-2.5 rounded-xl hover:bg-rose-600 transition-colors flex items-center gap-1.5 disabled:opacity-60"
-                >
-                  <Save className="h-4 w-4" />
-                  {isSavingDonation ? "儲存中…" : "儲存紀錄"}
-                </button>
-              </motion.form>
-            )}
-          </AnimatePresence>
 
           {donations.length === 0 ? (
             <div className="text-center py-10 bg-slate-50 rounded-2xl">
               <Droplets className="h-10 w-10 text-slate-300 mx-auto mb-3" />
               <p className="text-slate-500 font-medium">尚無捐血紀錄</p>
-              <p className="text-xs text-slate-400 mt-1">點擊「新增紀錄」記錄您的每一次捐血！</p>
+              <p className="text-xs text-slate-400 mt-1">捐血紀錄會由管理員審核後建立。</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -573,14 +397,6 @@ export function Records() {
                       {d.address || "地點未記錄"}
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleDeleteDonation(d.record_id)}
-                    disabled={deletingDonationId === d.record_id}
-                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-40 flex-shrink-0"
-                    title="刪除"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
                 </div>
               ))}
             </div>

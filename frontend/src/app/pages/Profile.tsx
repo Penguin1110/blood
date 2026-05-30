@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent, type ChangeEvent } from "react";
 import {
-  User, FileText, CalendarHeart, Save, AlertCircle, LogIn, Trash2,
+  User, FileText, CalendarHeart, Save, AlertCircle, LogIn, Trash2, CheckCircle,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { Link, useNavigate } from "react-router";
@@ -30,6 +30,7 @@ function ageFromBirthday(d: string) {
 
 interface ProfileEdit {
   name: string;
+  nickname: string;
   gender: string;
   birthday: string;
   blood_type: BloodType | "";
@@ -42,6 +43,8 @@ function validateProfile(f: ProfileEdit) {
   const errors: Record<string, string> = {};
   if (!f.name.trim()) errors.name = "請輸入姓名";
   else if (f.name.trim().length > 100) errors.name = "姓名不得超過 100 字";
+  if (!f.nickname.trim()) errors.nickname = "請輸入暱稱";
+  else if (f.nickname.trim().length > 50) errors.nickname = "暱稱不得超過 50 字";
   if (!f.gender) errors.gender = "請選擇性別";
   if (!f.birthday) errors.birthday = "請輸入生日";
   else if (ageFromBirthday(f.birthday) < 17) errors.birthday = "須年滿 17 歲";
@@ -95,7 +98,7 @@ export function Profile() {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [form, setForm] = useState<ProfileEdit>({
-    name: "", gender: "", birthday: "", blood_type: "", phone: "", email: "", password: "",
+    name: "", nickname: "", gender: "", birthday: "", blood_type: "", phone: "", email: "", password: "",
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
@@ -104,7 +107,7 @@ export function Profile() {
     getUser(authUser.donor_id)
       .then((u) => {
         setUserData(u);
-        setForm({ name: u.name, gender: u.gender, birthday: u.birthday, blood_type: u.blood_type, phone: u.phone, email: u.email, password: "" });
+        setForm({ name: u.name, nickname: u.nickname ?? u.name, gender: u.gender, birthday: u.birthday, blood_type: u.blood_type, phone: u.phone, email: u.email, password: "" });
       })
       .catch(() => setError("無法載入個人資料，請稍後再試"))
       .finally(() => setIsLoading(false));
@@ -161,6 +164,7 @@ export function Profile() {
     try {
       const payload: UserUpdate = {
         name: form.name.trim(),
+        nickname: form.nickname.trim(),
         gender: form.gender,
         birthday: form.birthday,
         blood_type: form.blood_type as BloodType,
@@ -212,8 +216,9 @@ export function Profile() {
           </div>
         )}
         {successMsg && (
-          <div className="mb-6 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-2xl px-4 py-3 font-medium">
-            ✓ {successMsg}
+          <div className="mb-6 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-2xl px-4 py-3 font-medium flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 flex-shrink-0" />
+            {successMsg}
           </div>
         )}
 
@@ -262,6 +267,11 @@ export function Profile() {
                 <ErrMsg msg={formErrors.name} />
               </div>
               <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">暱稱 *</label>
+                <input name="nickname" value={form.nickname} onChange={handleChange} className={inputCls(formErrors.nickname)} maxLength={50} />
+                <ErrMsg msg={formErrors.nickname} />
+              </div>
+              <div>
                 <label className="block text-xs font-bold text-slate-400 mb-1">性別 *</label>
                 <select name="gender" value={form.gender} onChange={handleChange} className={inputCls(formErrors.gender)}>
                   <option value="">請選擇</option>
@@ -308,6 +318,7 @@ export function Profile() {
           ) : (
             <div className="grid grid-cols-2 gap-x-8 gap-y-4">
               <InfoRow label="姓名" value={u.name} />
+              <InfoRow label="暱稱" value={u.nickname ?? u.name} />
               <InfoRow label="性別" value={u.gender} />
               <InfoRow label="血型" value={<span className="inline-block bg-rose-100 text-rose-600 font-extrabold px-3 py-0.5 rounded-lg">{u.blood_type}</span>} />
               <InfoRow label="生日" value={u.birthday} />

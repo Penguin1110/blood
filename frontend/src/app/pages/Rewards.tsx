@@ -1,9 +1,15 @@
 import { useState, useEffect } from "react";
-import { Trophy, Gift, Award, AlertCircle, Lock, TrendingUp, Wallet } from "lucide-react";
+import {
+  Trophy, Gift, Award, AlertCircle, Lock, TrendingUp, Wallet,
+  ShoppingBag, Ticket, Coffee, Star, BookOpen, Package, Medal, type LucideIcon,
+} from "lucide-react";
 import confetti from "canvas-confetti";
 import { motion } from "motion/react";
 import { Link } from "react-router";
-import { getRewards, getHealthLogsByDonor, getEligibleRewards, updateUser, getUser, type Reward, type HistoryLog } from "@/api";
+import {
+  getRewards, getHealthLogsByDonor, getEligibleRewards, updateUser, getUser,
+  getDonorLeaderboard, type Reward, type HistoryLog, type DonorRanking,
+} from "@/api";
 import { useAuth } from "@/context/AuthContext";
 
 function getLevel(pts: number) {
@@ -13,8 +19,8 @@ function getLevel(pts: number) {
   return { name: "捐血英雄", color: "bg-rose-100 text-rose-600", next: 1000 };
 }
 
-const GIFT_ICONS: Record<number, string> = {};
-const ICON_POOL = ["🛍️", "🎫", "🧸", "☕", "🎁", "🌟", "🍵", "📚"];
+const GIFT_ICONS: Record<number, LucideIcon> = {};
+const ICON_POOL = [ShoppingBag, Ticket, Package, Coffee, Gift, Star, BookOpen];
 let iconIdx = 0;
 function giftIcon(id: number) {
   if (!GIFT_ICONS[id]) GIFT_ICONS[id] = ICON_POOL[iconIdx++ % ICON_POOL.length];
@@ -26,6 +32,7 @@ export function Rewards() {
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [eligibleIds, setEligibleIds] = useState<Set<number>>(new Set());
   const [logs, setLogs] = useState<HistoryLog[]>([]);
+  const [leaderboard, setLeaderboard] = useState<DonorRanking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -49,11 +56,13 @@ export function Rewards() {
     const eligiblePromise = user
       ? getEligibleRewards(user.donor_id).catch(() => [] as Reward[])
       : Promise.resolve([] as Reward[]);
+    const leaderboardPromise = getDonorLeaderboard(5).catch(() => [] as DonorRanking[]);
 
-    Promise.all([rewardsPromise, logsPromise, eligiblePromise]).then(([r, l, e]) => {
+    Promise.all([rewardsPromise, logsPromise, eligiblePromise, leaderboardPromise]).then(([r, l, e, lb]) => {
       setRewards(r);
       setLogs(l);
       setEligibleIds(new Set(e.map((x) => x.gift_id)));
+      setLeaderboard(lb);
       setIsLoading(false);
     });
   }, [user]);
@@ -73,6 +82,8 @@ export function Rewards() {
       // Refresh eligible rewards based on new balance
       const eligible = await getEligibleRewards(user.donor_id).catch(() => [] as Reward[]);
       setEligibleIds(new Set(eligible.map((x) => x.gift_id)));
+      const lb = await getDonorLeaderboard(5).catch(() => [] as DonorRanking[]);
+      setLeaderboard(lb);
       confetti({
         particleCount: 100,
         spread: 70,
@@ -208,6 +219,7 @@ export function Rewards() {
                   {rewards.map((gift) => {
                     const isEligible = user && eligibleIds.has(gift.gift_id);
                     const canRedeem = user && currentPoints >= gift.needed_points;
+                    const GiftIcon = giftIcon(gift.gift_id);
                     return (
                       <div
                         key={gift.gift_id}
@@ -215,8 +227,8 @@ export function Rewards() {
                           isEligible ? "border-amber-300 ring-1 ring-amber-200" : "border-slate-100"
                         }`}
                       >
-                        <div className="text-4xl bg-slate-50 w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0">
-                          {giftIcon(gift.gift_id)}
+                        <div className="bg-slate-50 w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0">
+                          <GiftIcon className="h-8 w-8 text-rose-500" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-0.5">
@@ -290,6 +302,47 @@ export function Rewards() {
                     </div>
                   </div>
                 )}
+
+                <div className="mt-8 pt-6 border-t border-slate-100">
+                  <h3 className="font-extrabold text-slate-800 mb-4 flex items-center gap-2">
+                    <Medal className="h-5 w-5 text-amber-500" />
+                    累積點數排行
+                  </h3>
+                  {leaderboard.length === 0 ? (
+                    <p className="text-sm text-slate-400 font-medium text-center py-4">目前尚無排行資料</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {leaderboard.map((item) => (
+                        <div
+                          key={item.donor_id}
+                          className="flex items-center gap-3 rounded-2xl bg-slate-50 px-3 py-3"
+                        >
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-extrabold text-sm ${
+                            item.rank === 1
+                              ? "bg-amber-100 text-amber-700"
+                              : item.rank === 2
+                              ? "bg-slate-200 text-slate-700"
+                              : item.rank === 3
+                              ? "bg-orange-100 text-orange-700"
+                              : "bg-white text-slate-500"
+                          }`}>
+                            {item.rank}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-slate-700 truncate">{item.nickname}</p>
+                            <p className="text-xs text-slate-400 font-bold">
+                              目前 {item.current_points} 點
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-lg font-extrabold text-rose-600">{item.cumulative_points}</p>
+                            <p className="text-xs text-slate-400 font-bold">累積</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

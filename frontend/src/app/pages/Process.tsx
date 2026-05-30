@@ -1,4 +1,4 @@
-import { ClipboardList, Stethoscope, Droplet, Coffee } from "lucide-react";
+import { ClipboardList, Stethoscope, Droplet, Coffee, Lightbulb, Check } from "lucide-react";
 import { motion } from "motion/react";
 
 export function Process() {
@@ -87,7 +87,7 @@ export function Process() {
         >
           <div className="bg-white rounded-[2.8rem] p-8 md:p-12">
             <h2 className="text-2xl font-extrabold text-slate-800 mb-8 flex items-center justify-center gap-3">
-              <span className="text-3xl">💡</span> 捐血小叮嚀
+              <Lightbulb className="h-8 w-8 text-amber-500" /> 捐血小叮嚀
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
               <div className="bg-sky-50 rounded-2xl p-6 border border-sky-100">
@@ -95,10 +95,10 @@ export function Process() {
                   <div className="w-2 h-6 bg-sky-400 rounded-full" /> 捐血前準備
                 </h4>
                 <ul className="space-y-3 text-slate-600 font-medium">
-                  <li className="flex items-start gap-2"><span className="text-sky-500 font-bold">✓</span> 充足睡眠，前晚睡滿 6 小時</li>
-                  <li className="flex items-start gap-2"><span className="text-sky-500 font-bold">✓</span> 正常進食，請勿空腹捐血</li>
-                  <li className="flex items-start gap-2"><span className="text-sky-500 font-bold">✓</span> 補充水分，捐血前多喝水</li>
-                  <li className="flex items-start gap-2"><span className="text-sky-500 font-bold">✓</span> 穿著寬鬆、袖子易捲起的衣物</li>
+                  <li className="flex items-start gap-2"><Check className="h-4 w-4 mt-1 text-sky-500 flex-shrink-0" /> 充足睡眠，前晚睡滿 6 小時</li>
+                  <li className="flex items-start gap-2"><Check className="h-4 w-4 mt-1 text-sky-500 flex-shrink-0" /> 正常進食，請勿空腹捐血</li>
+                  <li className="flex items-start gap-2"><Check className="h-4 w-4 mt-1 text-sky-500 flex-shrink-0" /> 補充水分，捐血前多喝水</li>
+                  <li className="flex items-start gap-2"><Check className="h-4 w-4 mt-1 text-sky-500 flex-shrink-0" /> 穿著寬鬆、袖子易捲起的衣物</li>
                 </ul>
               </div>
               <div className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100">
@@ -106,10 +106,10 @@ export function Process() {
                   <div className="w-2 h-6 bg-emerald-400 rounded-full" /> 捐血後照顧
                 </h4>
                 <ul className="space-y-3 text-slate-600 font-medium">
-                  <li className="flex items-start gap-2"><span className="text-emerald-500 font-bold">✓</span> 多喝水，補充流失的水分</li>
-                  <li className="flex items-start gap-2"><span className="text-emerald-500 font-bold">✓</span> 扎針處的彈性繃帶請包紮至少 1 小時</li>
-                  <li className="flex items-start gap-2"><span className="text-emerald-500 font-bold">✓</span> 當天避免劇烈運動與提重物</li>
-                  <li className="flex items-start gap-2"><span className="text-emerald-500 font-bold">✓</span> 若感頭暈，請立即坐下或平躺休息</li>
+                  <li className="flex items-start gap-2"><Check className="h-4 w-4 mt-1 text-emerald-500 flex-shrink-0" /> 多喝水，補充流失的水分</li>
+                  <li className="flex items-start gap-2"><Check className="h-4 w-4 mt-1 text-emerald-500 flex-shrink-0" /> 扎針處的彈性繃帶請包紮至少 1 小時</li>
+                  <li className="flex items-start gap-2"><Check className="h-4 w-4 mt-1 text-emerald-500 flex-shrink-0" /> 當天避免劇烈運動與提重物</li>
+                  <li className="flex items-start gap-2"><Check className="h-4 w-4 mt-1 text-emerald-500 flex-shrink-0" /> 若感頭暈，請立即坐下或平躺休息</li>
                 </ul>
               </div>
             </div>

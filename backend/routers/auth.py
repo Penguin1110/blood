@@ -48,6 +48,7 @@ def login(payload: LoginRequest):
         SELECT
             donor_id,
             name,
+            nickname,
             gender,
             birthday,
             blood_type,

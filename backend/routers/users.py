@@ -18,6 +18,7 @@ def list_users(
         SELECT
             donor_id,
             name,
+            nickname,
             gender,
             birthday,
             blood_type,
@@ -41,6 +42,7 @@ def get_user(donor_id: int):
         SELECT
             donor_id,
             name,
+            nickname,
             gender,
             birthday,
             blood_type,
@@ -79,6 +81,7 @@ def create_user(data: UserCreate):
                     INSERT INTO `user`
                     (
                         name,
+                        nickname,
                         gender,
                         birthday,
                         blood_type,
@@ -86,10 +89,11 @@ def create_user(data: UserCreate):
                         email,
                         password_hash
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         data.name,
+                        data.nickname,
                         data.gender,
                         data.birthday,
                         data.blood_type,
@@ -143,7 +147,7 @@ def update_user(donor_id: int, data: UserUpdate):
     if not user:
         raise HTTPException(status_code=404, detail="找不到使用者")
 
-    ALLOWED_FIELDS = {"name", "gender", "birthday", "blood_type", "phone", "email", "password_hash", "spent_points"}
+    ALLOWED_FIELDS = {"name", "nickname", "gender", "birthday", "blood_type", "phone", "email", "password_hash", "spent_points"}
 
     fields = data.model_dump(exclude_unset=True)
 

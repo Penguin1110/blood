@@ -12,9 +12,28 @@ function formatTime(t: string | null) {
   return t.slice(0, 5);
 }
 
+function timeToMinutes(t: string | null) {
+  if (!t) return null;
+  const [hours, minutes] = t.slice(0, 5).split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function isAvailableAt(site: DonationSite, selectedTime: string) {
+  if (!selectedTime) return true;
+
+  const target = timeToMinutes(selectedTime);
+  const open = timeToMinutes(site.open_time);
+  const close = timeToMinutes(site.close_time);
+
+  if (target == null || open == null || close == null) return false;
+  if (open <= close) return open <= target && target <= close;
+  return target >= open || target <= close;
+}
+
 export function Locations() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState<Category>("all");
+  const [availableAt, setAvailableAt] = useState("");
   const [sites, setSites] = useState<SiteWithDistance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLocating, setIsLocating] = useState(false);
@@ -44,6 +63,7 @@ export function Locations() {
             longitude: coords.longitude,
             radius_km: 10,
             ...(activeCategory !== "all" ? { category: activeCategory } : {}),
+            ...(availableAt ? { available_at: availableAt } : {}),
           });
           setSites(nearby as DonationSiteNearby[]);
           setHasNearbySites(true);
@@ -101,7 +121,8 @@ export function Locations() {
       !q ||
       s.loca_name.toLowerCase().includes(q) ||
       s.address.toLowerCase().includes(q);
-    return matchCat && matchQ;
+    const matchTime = isAvailableAt(s, availableAt);
+    return matchCat && matchQ && matchTime;
   });
 
   return (
@@ -151,6 +172,24 @@ export function Locations() {
           ))}
 
           <div className="flex gap-2 ml-auto flex-wrap">
+            <label className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-600 font-bold text-sm">
+              <Clock className="h-4 w-4 text-slate-400" />
+              <span className="whitespace-nowrap">可用時間</span>
+              <input
+                type="time"
+                value={availableAt}
+                onChange={(e) => setAvailableAt(e.target.value)}
+                className="bg-transparent text-slate-700 font-bold focus:outline-none"
+              />
+            </label>
+            {availableAt && (
+              <button
+                onClick={() => setAvailableAt("")}
+                className="px-4 py-2 rounded-full font-bold text-sm bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                清除時間
+              </button>
+            )}
             {(hasNearbySites || isOpenOnly) && (
               <button
                 onClick={handleResetLocation}
@@ -244,6 +283,12 @@ export function Locations() {
                         <span>
                           {formatTime(site.open_time)} – {formatTime(site.close_time)}
                         </span>
+                      </div>
+                    )}
+                    {site.hours_note && (
+                      <div className="flex items-center p-1">
+                        <Clock className="h-4 w-4 mr-2 text-slate-400 flex-shrink-0" />
+                        <span>{site.hours_note}</span>
                       </div>
                     )}
                   </div>

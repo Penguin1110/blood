@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ChangeEvent } from "react";
 import { useNavigate, Link } from "react-router";
-import { Heart, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Heart, Eye, EyeOff, AlertCircle, ShieldCheck } from "lucide-react";
 import { motion } from "motion/react";
 import { login as apiLogin, createUser, BLOOD_TYPES, type BloodType, type UserCreate } from "@/api";
 import { useAuth } from "@/context/AuthContext";
@@ -41,6 +41,9 @@ function validateRegister(form: RegisterForm) {
   if (!form.name.trim()) errors.name = "請輸入姓名";
   else if (form.name.trim().length > 100) errors.name = "姓名不得超過 100 字";
 
+  if (!form.nickname.trim()) errors.nickname = "請輸入暱稱";
+  else if (form.nickname.trim().length > 50) errors.nickname = "暱稱不得超過 50 字";
+
   if (!form.gender) errors.gender = "請選擇性別";
 
   if (!form.birthday) errors.birthday = "請輸入生日";
@@ -73,6 +76,7 @@ function validateRegister(form: RegisterForm) {
 
 interface RegisterForm {
   name: string;
+  nickname: string;
   gender: string;
   birthday: string;
   blood_type: BloodType | "";
@@ -84,6 +88,7 @@ interface RegisterForm {
 
 const EMPTY_REGISTER: RegisterForm = {
   name: "",
+  nickname: "",
   gender: "",
   birthday: "",
   blood_type: "",
@@ -186,6 +191,7 @@ export function Login() {
     try {
       const payload: UserCreate = {
         name: regForm.name.trim(),
+        nickname: regForm.nickname.trim(),
         gender: regForm.gender,
         birthday: regForm.birthday,
         blood_type: regForm.blood_type as BloodType,
@@ -294,6 +300,14 @@ export function Login() {
                 >
                   {isLoading ? "登入中…" : "登入"}
                 </button>
+
+                <Link
+                  to="/admin/login"
+                  className="w-full py-3 rounded-2xl bg-slate-100 text-slate-700 font-bold text-base hover:bg-slate-200 transition-colors flex items-center justify-center gap-2"
+                >
+                  <ShieldCheck className="h-5 w-5 text-rose-500" />
+                  管理員登入
+                </Link>
               </form>
             )}
 
@@ -312,6 +326,19 @@ export function Login() {
                     />
                   </Field>
 
+                  <Field label="暱稱" error={regErrors.nickname} required>
+                    <input
+                      name="nickname"
+                      value={regForm.nickname}
+                      onChange={handleRegChange}
+                      className={inputCls(regErrors.nickname)}
+                      placeholder="排行榜顯示名稱"
+                      maxLength={50}
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <Field label="性別" error={regErrors.gender} required>
                     <select
                       name="gender"

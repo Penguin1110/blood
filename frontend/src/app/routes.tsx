@@ -8,6 +8,8 @@ import { Locations } from "./pages/Locations";
 import { Rewards } from "./pages/Rewards";
 import { Profile } from "./pages/Profile";
 import { Records } from "./pages/Records";
+import { AdminDonations } from "./pages/AdminDonations";
+import { AdminLogin } from "./pages/AdminLogin";
 
 export const router = createBrowserRouter([
   {
@@ -25,4 +27,6 @@ export const router = createBrowserRouter([
       { path: "*", element: <Navigate to="/" replace /> },
     ],
   },
+  { path: "/admin/login", Component: AdminLogin },
+  { path: "/admin/donations", Component: AdminDonations },
 ]);

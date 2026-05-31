@@ -57,10 +57,16 @@ function validateProfile(f: ProfileEdit) {
   return errors;
 }
 
-function calculateNextDonation(lastDate: string | null) {
+function intervalDaysForCategory(category: string | null) {
+  if (category === "全血（500cc）") return 90;
+  if (category === "血小板" || category === "血漿" || category === "血小板血漿（單採）") return 14;
+  return 60;
+}
+
+function calculateNextDonation(lastDate: string | null, lastCategory: string | null) {
   if (!lastDate) return "隨時可捐";
   const d = new Date(lastDate);
-  d.setMonth(d.getMonth() + 2);
+  d.setDate(d.getDate() + intervalDaysForCategory(lastCategory));
   if (new Date() >= d) return "隨時可捐";
   return d.toISOString().split("T")[0];
 }
@@ -145,8 +151,19 @@ export function Profile() {
     );
   }
 
-  const u = userData!;
-  const nextDate = calculateNextDonation(u.last_date);
+  if (!userData) {
+    return (
+      <div className="py-12 bg-rose-50/30 min-h-screen flex items-center justify-center">
+        <div className="text-center bg-white rounded-3xl p-12 shadow-sm border border-slate-100 max-w-md w-full mx-4">
+          <AlertCircle className="h-12 w-12 text-rose-400 mx-auto mb-4" />
+          <p className="text-slate-600 font-medium">{error || "無法載入個人資料，請稍後再試"}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const u = userData;
+  const nextDate = calculateNextDonation(u.last_date, u.last_category);
   const canDonate = nextDate === "隨時可捐";
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -234,7 +251,9 @@ export function Profile() {
               <p className={`font-bold ${canDonate ? "text-emerald-700" : "text-blue-700"}`}>
                 {canDonate ? "目前可以捐血！" : "請等候間隔期結束"}
               </p>
-              <p className="text-sm mt-0.5 opacity-80">上次捐血：{u.last_date ?? "尚無紀錄"}</p>
+              <p className="text-sm mt-0.5 opacity-80">
+                上次捐血：{u.last_date ?? "尚無紀錄"}{u.last_category ? `（${u.last_category}）` : ""}
+              </p>
             </div>
           </div>
           <div className={`px-5 py-2.5 rounded-2xl font-extrabold text-lg ${canDonate ? "bg-emerald-500 text-white shadow-md" : "bg-blue-100 text-blue-800"}`}>

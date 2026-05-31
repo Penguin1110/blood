@@ -1,54 +1,137 @@
-import { useState, useEffect, type FormEvent, type ChangeEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import {
-  Activity, FileText, Save, AlertCircle, LogIn, Droplets, Trash2, X,
-  CheckCircle,
+  Activity, AlertCircle, CalendarHeart, CheckCircle, Droplets, FileText,
+  LogIn, Save, Trash2, X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Link } from "react-router";
 import {
-  getHealthLogsByDonor, createHealthLog, updateHealthLog, deleteHealthLog,
-  getDonationsByUser,
-  type HistoryLog, type DonationRecord,
+  createHealthLog, deleteHealthLog, getDonationsByUser,
+  getHealthLogsByDonor, updateHealthLog,
+  type DonationRecord, type HistoryLog,
 } from "@/api";
 import { useAuth } from "@/context/AuthContext";
 
-// ── Validation ────────────────────────────────────────────────────────────────
+type HealthField =
+  | "has_cold_or_infection"
+  | "had_dental_treatment"
+  | "had_surgery_or_transfusion"
+  | "taking_medication"
+  | "had_vaccine_or_injection"
+  | "pregnancy_or_postpartum"
+  | "unexplained_weight_loss"
+  | "had_tattoo_piercing"
+  | "traveled_epidemic_area"
+  | "contact_infectious_disease"
+  | "high_risk_behavior"
+  | "understood_process_and_risk"
+  | "consent_blood_donation"
+  | "consent_medical_reuse";
 
-interface HealthEdit {
-  drugs_record: string;
-  location: string;
-  weight: string;
+type HealthEdit = Record<HealthField, boolean>;
+
+const EMPTY_HEALTH_FORM: HealthEdit = {
+  has_cold_or_infection: false,
+  had_dental_treatment: false,
+  had_surgery_or_transfusion: false,
+  taking_medication: false,
+  had_vaccine_or_injection: false,
+  pregnancy_or_postpartum: false,
+  unexplained_weight_loss: false,
+  had_tattoo_piercing: false,
+  traveled_epidemic_area: false,
+  contact_infectious_disease: false,
+  high_risk_behavior: false,
+  understood_process_and_risk: false,
+  consent_blood_donation: false,
+  consent_medical_reuse: false,
+};
+
+const QUESTION_SECTIONS: {
+  title: string;
+  desc: string;
+  questions: { key: HealthField; label: string }[];
+}[] = [
+  {
+    title: "近期健康與生活狀況",
+    desc: "請依近期身體狀況、治療、用藥與生活變化勾選。",
+    questions: [
+      { key: "has_cold_or_infection", label: "近期是否有感冒、發燒、腹瀉或急性感染？" },
+      { key: "had_dental_treatment", label: "7 天內是否曾接受拔牙或牙科治療？" },
+      { key: "had_surgery_or_transfusion", label: "近期是否曾進行外科手術或接受輸血？" },
+      { key: "taking_medication", label: "目前是否正在服藥？" },
+      { key: "had_vaccine_or_injection", label: "過去 1 個月內是否曾接種疫苗或接受注射？" },
+      { key: "pregnancy_or_postpartum", label: "女性是否懷孕中、產後或流產未滿 6 個月？" },
+      { key: "unexplained_weight_loss", label: "是否近期有不明原因體重驟降？" },
+      { key: "had_tattoo_piercing", label: "是否曾在近幾個月內刺青、紋眉或穿耳洞？" },
+    ],
+  },
+  {
+    title: "旅遊史與傳染病風險",
+    desc: "請確認旅遊、接觸史與高風險行為。",
+    questions: [
+      { key: "traveled_epidemic_area", label: "過去一段時間是否曾出國至傳染病疫區（如瘧疾、茲卡病毒等）？" },
+      { key: "contact_infectious_disease", label: "是否曾與傳染病患者密切接觸？" },
+      { key: "high_risk_behavior", label: "是否曾有危險性行為、吸毒等高風險行為？" },
+    ],
+  },
+  {
+    title: "同意與簽名",
+    desc: "請確認您已理解流程與同意事項。",
+    questions: [
+      { key: "understood_process_and_risk", label: "確認已了解捐血流程、用血安全及相關刑責。" },
+      { key: "consent_blood_donation", label: "同意無償捐血。" },
+      { key: "consent_medical_reuse", label: "若血液不適合輸給病人，是否同意供作國內外醫藥資源再利用？" },
+    ],
+  },
+];
+
+function intervalDaysForCategory(category: string | null) {
+  if (category === "全血（500cc）") return 90;
+  if (category === "血小板" || category === "血漿" || category === "血小板血漿（單採）") return 14;
+  return 60;
 }
 
-function validateHealth(f: HealthEdit) {
-  const errors: Record<string, string> = {};
-  if (f.weight !== "") {
-    const w = Number(f.weight);
-    if (isNaN(w) || w <= 0) errors.weight = "請輸入有效體重";
-    else if (w < 30 || w > 300) errors.weight = "體重需介於 30 ~ 300 公斤";
-  }
-  if (f.location.length > 100) errors.location = "旅遊史不得超過 100 字";
-  return errors;
+function calculateNextDonation(lastDate: string | null, lastCategory: string | null) {
+  if (!lastDate) return "隨時可捐";
+  const d = new Date(lastDate);
+  d.setDate(d.getDate() + intervalDaysForCategory(lastCategory));
+  if (new Date() >= d) return "隨時可捐";
+  return d.toISOString().split("T")[0];
 }
 
-// ── Shared UI ────────────────────────────────────────────────────────────────
-
-function inputCls(err?: string) {
-  return `w-full bg-slate-50 border rounded-xl px-3 py-2 focus:outline-none font-medium text-slate-700 transition-colors ${
-    err ? "border-rose-300 focus:border-rose-400" : "border-slate-200 focus:border-sky-400"
-  }`;
+function fieldValue(log: HistoryLog | null, key: HealthField) {
+  return log ? Boolean(log[key]) : false;
 }
 
-function ErrMsg({ msg }: { msg?: string }) {
-  if (!msg) return null;
+function StatusBadge({ value }: { value: boolean }) {
   return (
-    <p className="mt-1 text-xs text-rose-500 font-medium flex items-center gap-1">
-      <AlertCircle className="h-3 w-3" /> {msg}
-    </p>
+    <span className={`inline-flex items-center justify-center min-w-12 px-2.5 py-1 rounded-lg text-xs font-extrabold ${
+      value ? "bg-rose-100 text-rose-600" : "bg-emerald-100 text-emerald-600"
+    }`}>
+      {value ? "是" : "否"}
+    </span>
   );
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+function ConsentBadge({ value }: { value: boolean }) {
+  return (
+    <span className={`inline-flex items-center justify-center min-w-12 px-2.5 py-1 rounded-lg text-xs font-extrabold ${
+      value ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-500"
+    }`}>
+      {value ? "是" : "否"}
+    </span>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+      <p className="text-xs font-bold text-slate-400 mb-1">{label}</p>
+      <div className="font-bold text-slate-700">{value}</div>
+    </div>
+  );
+}
 
 export function Records() {
   const { user: authUser } = useAuth();
@@ -60,16 +143,15 @@ export function Records() {
   const [deletingHealthId, setDeletingHealthId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [formError, setFormError] = useState("");
 
   const [isEditingHealth, setIsEditingHealth] = useState(false);
   const [showNoHealthNotice, setShowNoHealthNotice] = useState(false);
-
-  const [healthForm, setHealthForm] = useState<HealthEdit>({
-    drugs_record: "", location: "", weight: "",
-  });
-  const [healthErrors, setHealthErrors] = useState<Record<string, string>>({});
+  const [healthForm, setHealthForm] = useState<HealthEdit>(EMPTY_HEALTH_FORM);
 
   const latestLog = healthLogs[0] ?? null;
+  const nextDate = calculateNextDonation(authUser?.last_date ?? null, authUser?.last_category ?? null);
+  const canDonate = nextDate === "隨時可捐";
 
   useEffect(() => {
     if (!authUser) { setIsLoading(false); return; }
@@ -81,19 +163,20 @@ export function Records() {
       .then(([logs, dons]) => {
         setHealthLogs(logs);
         setDonations(dons);
-        const latest = logs[0];
+        const latest = logs[0] ?? null;
         setHealthForm({
-          drugs_record: latest?.drugs_record ?? "",
-          location: latest?.location ?? "",
-          weight: latest?.weight != null ? String(latest.weight) : "",
+          ...EMPTY_HEALTH_FORM,
+          ...(latest
+            ? Object.fromEntries(
+                Object.keys(EMPTY_HEALTH_FORM).map((key) => [key, Boolean(latest[key as HealthField])]),
+              ) as HealthEdit
+            : {}),
         });
-        const hasData = latest && (latest.drugs_record || latest.location || latest.weight != null);
-        if (!hasData) setShowNoHealthNotice(true);
+        if (!latest) setShowNoHealthNotice(true);
       })
       .catch(() => setError("無法載入紀錄，請稍後再試"))
       .finally(() => setIsLoading(false));
   }, [authUser]);
-
 
   if (!authUser) {
     return (
@@ -127,26 +210,22 @@ export function Records() {
     );
   }
 
-  // ── Handlers ────────────────────────────────────────────────────────────────
-
-  const handleHealthChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setHealthForm((p) => ({ ...p, [name]: value }));
-    if (healthErrors[name]) setHealthErrors((p) => ({ ...p, [name]: "" }));
+  const handleHealthCheck = (key: HealthField, value: boolean) => {
+    setHealthForm((prev) => ({ ...prev, [key]: value }));
+    setFormError("");
   };
 
   const handleSaveHealth = async (e: FormEvent) => {
     e.preventDefault();
-    const errs = validateHealth(healthForm);
-    if (Object.keys(errs).length > 0) { setHealthErrors(errs); return; }
+    if (!healthForm.understood_process_and_risk || !healthForm.consent_blood_donation) {
+      setFormError("請確認已了解捐血流程與同意無償捐血。");
+      return;
+    }
+
     setIsSavingHealth(true);
     setError("");
     try {
-      const payload = {
-        drugs_record: healthForm.drugs_record || undefined,
-        location: healthForm.location || undefined,
-        weight: healthForm.weight !== "" ? Number(healthForm.weight) : undefined,
-      };
+      const payload = { ...healthForm };
       if (latestLog) {
         await updateHealthLog(latestLog.log_id, payload);
       } else {
@@ -173,14 +252,16 @@ export function Records() {
       await deleteHealthLog(log_id);
       const logs = await getHealthLogsByDonor(authUser.donor_id);
       setHealthLogs(logs);
-      const latest = logs[0];
+      const latest = logs[0] ?? null;
       setHealthForm({
-        drugs_record: latest?.drugs_record ?? "",
-        location: latest?.location ?? "",
-        weight: latest?.weight != null ? String(latest.weight) : "",
+        ...EMPTY_HEALTH_FORM,
+        ...(latest
+          ? Object.fromEntries(
+              Object.keys(EMPTY_HEALTH_FORM).map((key) => [key, Boolean(latest[key as HealthField])]),
+            ) as HealthEdit
+          : {}),
       });
-      const hasData = latest && (latest.drugs_record || latest.location || latest.weight != null);
-      if (!hasData) setShowNoHealthNotice(true);
+      if (!latest) setShowNoHealthNotice(true);
       setSuccessMsg("健康紀錄已刪除");
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (err) {
@@ -192,11 +273,10 @@ export function Records() {
 
   return (
     <div className="py-12 bg-rose-50/30 min-h-screen">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10">
           <h1 className="text-4xl font-extrabold text-slate-800 mb-3">健康 & 捐血紀錄</h1>
-          <p className="text-lg text-slate-600 font-medium">管理您的健康履歷與每次捐血記錄。</p>
+          <p className="text-lg text-slate-600 font-medium">維護基本資料、健康問卷與每次捐血記錄。</p>
         </div>
 
         {error && (
@@ -211,7 +291,39 @@ export function Records() {
           </div>
         )}
 
-        {/* No health data notice */}
+        <div className={`rounded-3xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm border mb-8 ${
+          canDonate ? "bg-emerald-50 border-emerald-200" : "bg-blue-50 border-blue-200"
+        }`}>
+          <div className="flex items-center gap-4">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${canDonate ? "bg-emerald-100 text-emerald-600" : "bg-blue-100 text-blue-600"}`}>
+              <CalendarHeart className="h-7 w-7" />
+            </div>
+            <div>
+              <p className={`font-bold ${canDonate ? "text-emerald-700" : "text-blue-700"}`}>
+                {canDonate ? "目前可以捐血" : "請等候間隔期結束"}
+              </p>
+              <p className="text-sm mt-0.5 opacity-80">
+                上次捐血：{authUser.last_date ?? "尚無紀錄"}{authUser.last_category ? `（${authUser.last_category}）` : ""}
+              </p>
+            </div>
+          </div>
+          <div className={`px-5 py-2.5 rounded-2xl font-extrabold text-lg ${canDonate ? "bg-emerald-500 text-white shadow-md" : "bg-blue-100 text-blue-800"}`}>
+            下次可捐：{nextDate}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 mb-8">
+          <h2 className="text-xl font-extrabold text-slate-800 flex items-center gap-2 mb-5">
+            <FileText className="h-5 w-5 text-sky-500" /> 基本資料
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <InfoRow label="姓名" value={authUser.name} />
+            <InfoRow label="身分證字號" value={authUser.id_number ?? <span className="text-slate-400 italic">未填寫</span>} />
+            <InfoRow label="出生年月日" value={authUser.birthday} />
+            <InfoRow label="聯絡方式（電話）" value={authUser.phone} />
+          </div>
+        </div>
+
         <AnimatePresence>
           {showNoHealthNotice && (
             <motion.div
@@ -226,7 +338,7 @@ export function Records() {
               <div className="flex-1">
                 <h3 className="font-extrabold text-slate-800 mb-1">健康履歷尚未填寫</h3>
                 <p className="text-sm text-slate-600 font-medium">
-                  誠實填寫健康資料有助於系統評估捐血資格，建議盡快建立。
+                  建議完成健康問卷，以利捐血資格評估。
                 </p>
                 <button
                   onClick={() => { setShowNoHealthNotice(false); setIsEditingHealth(true); }}
@@ -242,22 +354,21 @@ export function Records() {
           )}
         </AnimatePresence>
 
-        {/* ── Health log ── */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 mb-8">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between gap-4 mb-5">
             <h2 className="text-xl font-extrabold text-slate-800 flex items-center gap-2">
-              <Activity className="h-5 w-5 text-rose-500" /> 健康履歷
+              <Activity className="h-5 w-5 text-rose-500" /> 健康問卷
             </h2>
             {!isEditingHealth ? (
               <button
-                onClick={() => setIsEditingHealth(true)}
+                onClick={() => { setHealthForm({ ...EMPTY_HEALTH_FORM, ...(latestLog ? Object.fromEntries(Object.keys(EMPTY_HEALTH_FORM).map((key) => [key, Boolean(latestLog[key as HealthField])])) as HealthEdit : {}) }); setIsEditingHealth(true); }}
                 className="text-sky-600 font-bold hover:bg-sky-50 px-3 py-1.5 rounded-xl text-sm flex items-center gap-1 transition-colors"
               >
-                <FileText className="h-4 w-4" /> {latestLog ? "編輯" : "建立履歷"}
+                <FileText className="h-4 w-4" /> {latestLog ? "編輯" : "建立問卷"}
               </button>
             ) : (
               <button
-                onClick={() => { setIsEditingHealth(false); setHealthErrors({}); }}
+                onClick={() => { setIsEditingHealth(false); setFormError(""); }}
                 className="text-slate-400 font-bold hover:bg-slate-50 px-3 py-1.5 rounded-xl text-sm"
               >
                 取消
@@ -268,51 +379,41 @@ export function Records() {
           <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-5 flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-amber-700 font-medium leading-relaxed">
-              請誠實填寫健康履歷。若有服用特殊藥物或近期旅遊史，系統將自動評估捐血資格。
+              請依實際狀況填寫。若對愛滋病毒空窗期、傳染病風險或其他安全性有疑慮，請暫緩捐血。
             </p>
           </div>
 
           {isEditingHealth ? (
-            <form onSubmit={handleSaveHealth} className="space-y-5">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5">近期用藥紀錄</label>
-                <textarea
-                  name="drugs_record"
-                  value={healthForm.drugs_record}
-                  onChange={handleHealthChange}
-                  rows={2}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-sky-400 font-medium text-slate-700 resize-none"
-                  placeholder="請填寫近期服用的藥物，若無則填「無」"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5">一年內旅遊史</label>
-                <textarea
-                  name="location"
-                  value={healthForm.location}
-                  onChange={handleHealthChange}
-                  rows={2}
-                  maxLength={100}
-                  className={`w-full bg-slate-50 border rounded-xl px-4 py-3 focus:outline-none focus:border-sky-400 font-medium text-slate-700 resize-none ${healthErrors.location ? "border-rose-300" : "border-slate-200"}`}
-                  placeholder="請填寫近一年出國的地點，若無則填「無」"
-                />
-                <ErrMsg msg={healthErrors.location} />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5">體重 (kg)</label>
-                <input
-                  type="number"
-                  name="weight"
-                  value={healthForm.weight}
-                  onChange={handleHealthChange}
-                  min={30}
-                  max={300}
-                  step={0.1}
-                  className={`w-full bg-slate-50 border rounded-xl px-4 py-3 focus:outline-none focus:border-sky-400 font-medium text-slate-700 ${healthErrors.weight ? "border-rose-300" : "border-slate-200"}`}
-                  placeholder="例如 65.5"
-                />
-                <ErrMsg msg={healthErrors.weight} />
-              </div>
+            <form onSubmit={handleSaveHealth} className="space-y-6">
+              {QUESTION_SECTIONS.map((section) => (
+                <section key={section.title} className="border border-slate-100 rounded-2xl p-5 bg-slate-50/60">
+                  <div className="mb-4">
+                    <h3 className="font-extrabold text-slate-800">{section.title}</h3>
+                    <p className="text-sm text-slate-500 font-medium mt-1">{section.desc}</p>
+                  </div>
+                  <div className="space-y-3">
+                    {section.questions.map((q) => (
+                      <label key={q.key} className="flex items-start justify-between gap-4 bg-white rounded-xl border border-slate-100 px-4 py-3 cursor-pointer">
+                        <span className="text-sm font-bold text-slate-700 leading-relaxed">{q.label}</span>
+                        <input
+                          type="checkbox"
+                          checked={healthForm[q.key]}
+                          onChange={(e) => handleHealthCheck(q.key, e.target.checked)}
+                          className="mt-1 h-5 w-5 accent-rose-500 flex-shrink-0"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </section>
+              ))}
+
+              {formError && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl px-4 py-3 flex items-center gap-2 font-medium">
+                  <AlertCircle className="h-5 w-5 flex-shrink-0" />
+                  {formError}
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={isSavingHealth}
@@ -323,25 +424,28 @@ export function Records() {
               </button>
             </form>
           ) : (
-            <div className="space-y-5">
-              <div>
-                <label className="block text-sm font-bold text-slate-500 mb-1.5">近期用藥紀錄</label>
-                <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 min-h-[3rem] font-medium text-slate-600">
-                  {latestLog?.drugs_record || <span className="text-slate-400 italic">未填寫</span>}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-500 mb-1.5">一年內旅遊史</label>
-                <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 min-h-[3rem] font-medium text-slate-600">
-                  {latestLog?.location || <span className="text-slate-400 italic">未填寫</span>}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-500 mb-1.5">體重 (kg)</label>
-                <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 min-h-[3rem] font-medium text-slate-600">
-                  {latestLog?.weight != null ? `${latestLog.weight} kg` : <span className="text-slate-400 italic">未填寫</span>}
-                </div>
-              </div>
+            <div className="space-y-6">
+              {QUESTION_SECTIONS.map((section) => (
+                <section key={section.title} className="border border-slate-100 rounded-2xl p-5 bg-slate-50/60">
+                  <div className="mb-4">
+                    <h3 className="font-extrabold text-slate-800">{section.title}</h3>
+                    <p className="text-sm text-slate-500 font-medium mt-1">{section.desc}</p>
+                  </div>
+                  <div className="space-y-3">
+                    {section.questions.map((q) => (
+                      <div key={q.key} className="flex items-start justify-between gap-4 bg-white rounded-xl border border-slate-100 px-4 py-3">
+                        <span className="text-sm font-bold text-slate-700 leading-relaxed">{q.label}</span>
+                        {section.title === "同意與簽名" ? (
+                          <ConsentBadge value={fieldValue(latestLog, q.key)} />
+                        ) : (
+                          <StatusBadge value={fieldValue(latestLog, q.key)} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+
               {latestLog && (
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-slate-400">
@@ -361,7 +465,6 @@ export function Records() {
           )}
         </div>
 
-        {/* ── Donation records ── */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-xl font-extrabold text-slate-800 flex items-center gap-2">

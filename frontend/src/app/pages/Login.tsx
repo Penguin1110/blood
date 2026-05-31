@@ -44,6 +44,9 @@ function validateRegister(form: RegisterForm) {
   if (!form.nickname.trim()) errors.nickname = "請輸入暱稱";
   else if (form.nickname.trim().length > 50) errors.nickname = "暱稱不得超過 50 字";
 
+  if (!form.id_number.trim()) errors.id_number = "請輸入身分證字號";
+  else if (!/^[A-Z][12]\d{8}$/i.test(form.id_number.trim())) errors.id_number = "身分證字號格式不正確";
+
   if (!form.gender) errors.gender = "請選擇性別";
 
   if (!form.birthday) errors.birthday = "請輸入生日";
@@ -63,12 +66,6 @@ function validateRegister(form: RegisterForm) {
   else if (form.password.length < 6) errors.password = "密碼至少 6 個字元";
   else if (form.password.length > 100) errors.password = "密碼不得超過 100 字元";
 
-  if (form.weight !== "") {
-    const w = Number(form.weight);
-    if (isNaN(w) || w <= 0) errors.weight = "請輸入有效體重";
-    else if (w < 30 || w > 300) errors.weight = "體重需介於 30 ~ 300 公斤";
-  }
-
   return errors;
 }
 
@@ -77,25 +74,25 @@ function validateRegister(form: RegisterForm) {
 interface RegisterForm {
   name: string;
   nickname: string;
+  id_number: string;
   gender: string;
   birthday: string;
   blood_type: BloodType | "";
   phone: string;
   email: string;
   password: string;
-  weight: string;
 }
 
 const EMPTY_REGISTER: RegisterForm = {
   name: "",
   nickname: "",
+  id_number: "",
   gender: "",
   birthday: "",
   blood_type: "",
   phone: "",
   email: "",
   password: "",
-  weight: "",
 };
 
 // ── Shared UI ────────────────────────────────────────────────────────────────
@@ -192,13 +189,13 @@ export function Login() {
       const payload: UserCreate = {
         name: regForm.name.trim(),
         nickname: regForm.nickname.trim(),
+        id_number: regForm.id_number.trim().toUpperCase(),
         gender: regForm.gender,
         birthday: regForm.birthday,
         blood_type: regForm.blood_type as BloodType,
         phone: regForm.phone.trim(),
         email: regForm.email.trim(),
         password: regForm.password,
-        ...(regForm.weight !== "" ? { weight: Number(regForm.weight) } : {}),
       };
       await createUser(payload);
       // Auto-login after register
@@ -227,7 +224,7 @@ export function Login() {
               <Heart className="h-7 w-7 fill-white" />
             </div>
             <span className="font-extrabold text-2xl text-slate-800">
-              滴滴<span className="text-rose-500">愛心</span>
+              血盅紅我都吃<span className="text-rose-500"> BLOOD</span>
             </span>
           </Link>
         </div>
@@ -351,6 +348,17 @@ export function Login() {
                       <option value="女">女</option>
                     </select>
                   </Field>
+                  <Field label="身分證字號" error={regErrors.id_number} required>
+                    <input
+                      name="id_number"
+                      value={regForm.id_number}
+                      onChange={handleRegChange}
+                      className={inputCls(regErrors.id_number)}
+                      placeholder="A123456789"
+                      maxLength={10}
+                      autoComplete="off"
+                    />
+                  </Field>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -423,20 +431,6 @@ export function Login() {
                       {showPwd ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
                   </div>
-                </Field>
-
-                <Field label="體重 (kg)" error={regErrors.weight}>
-                  <input
-                    type="number"
-                    name="weight"
-                    value={regForm.weight}
-                    onChange={handleRegChange}
-                    className={inputCls(regErrors.weight)}
-                    placeholder="選填，例如 60"
-                    min={30}
-                    max={300}
-                    step={0.1}
-                  />
                 </Field>
 
                 <p className="text-xs text-slate-400 font-medium">

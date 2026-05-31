@@ -1,7 +1,15 @@
 import { useState, useEffect } from "react";
-import { Search, MapPin, Clock, Navigation, Locate, AlertCircle } from "lucide-react";
+import { Search, MapPin, Clock, Navigation, Locate, AlertCircle, CalendarDays, TrainFront } from "lucide-react";
 import { motion } from "motion/react";
-import { getSites, getNearbySites, getOpenSites, type DonationSite, type DonationSiteNearby } from "@/api";
+import {
+  getAllTransportation,
+  getSites,
+  getNearbySites,
+  getOpenSites,
+  type DonationSite,
+  type DonationSiteNearby,
+  type Transportation,
+} from "@/api";
 import { SiteMap } from "@/app/components/SiteMap";
 
 type Category = "all" | "捐血站" | "捐血車";
@@ -18,23 +26,38 @@ function timeToMinutes(t: string | null) {
   return hours * 60 + minutes;
 }
 
-function isAvailableAt(site: DonationSite, selectedTime: string) {
-  if (!selectedTime) return true;
+function isAvailableBetween(site: DonationSite, selectedFrom: string, selectedTo: string) {
+  if (!selectedFrom && !selectedTo) return true;
 
-  const target = timeToMinutes(selectedTime);
+  const start = timeToMinutes(selectedFrom || selectedTo);
+  const end = timeToMinutes(selectedTo || selectedFrom);
   const open = timeToMinutes(site.open_time);
   const close = timeToMinutes(site.close_time);
 
-  if (target == null || open == null || close == null) return false;
-  if (open <= close) return open <= target && target <= close;
-  return target >= open || target <= close;
+  if (start == null || end == null || open == null || close == null) return false;
+  if (end < start) return false;
+  if (open <= close) return open <= start && end <= close;
+  return start >= open || end <= close;
+}
+
+function isOpenOnDate(site: DonationSite, selectedDate: string) {
+  if (!selectedDate || !site.open_days) return true;
+  const day = new Date(`${selectedDate}T00:00:00`).getDay();
+  const isoDay = day === 0 ? 7 : day;
+  return site.open_days
+    .split(",")
+    .map((d) => Number(d.trim()))
+    .includes(isoDay);
 }
 
 export function Locations() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState<Category>("all");
-  const [availableAt, setAvailableAt] = useState("");
+  const [availableDate, setAvailableDate] = useState("");
+  const [availableFrom, setAvailableFrom] = useState("");
+  const [availableTo, setAvailableTo] = useState("");
   const [sites, setSites] = useState<SiteWithDistance[]>([]);
+  const [transportationBySite, setTransportationBySite] = useState<Record<number, Transportation[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isLocating, setIsLocating] = useState(false);
   const [error, setError] = useState("");
@@ -42,8 +65,16 @@ export function Locations() {
   const [isOpenOnly, setIsOpenOnly] = useState(false);
 
   useEffect(() => {
-    getSites()
-      .then((data) => setSites(data))
+    Promise.all([getSites(), getAllTransportation()])
+      .then(([data, transports]) => {
+        setSites(data);
+        setTransportationBySite(
+          transports.reduce<Record<number, Transportation[]>>((acc, item) => {
+            acc[item.site_id] = [...(acc[item.site_id] ?? []), item];
+            return acc;
+          }, {}),
+        );
+      })
       .catch(() => setError("無法載入捐血站資料，請稍後再試"))
       .finally(() => setIsLoading(false));
   }, []);
@@ -63,7 +94,9 @@ export function Locations() {
             longitude: coords.longitude,
             radius_km: 10,
             ...(activeCategory !== "all" ? { category: activeCategory } : {}),
-            ...(availableAt ? { available_at: availableAt } : {}),
+            ...(availableDate ? { available_date: availableDate } : {}),
+            ...(availableFrom ? { available_from: availableFrom } : {}),
+            ...(availableTo ? { available_to: availableTo } : {}),
           });
           setSites(nearby as DonationSiteNearby[]);
           setHasNearbySites(true);
@@ -121,9 +154,12 @@ export function Locations() {
       !q ||
       s.loca_name.toLowerCase().includes(q) ||
       s.address.toLowerCase().includes(q);
-    const matchTime = isAvailableAt(s, availableAt);
-    return matchCat && matchQ && matchTime;
+    const matchDate = isOpenOnDate(s, availableDate);
+    const matchTime = isAvailableBetween(s, availableFrom, availableTo);
+    return matchCat && matchQ && matchDate && matchTime;
   });
+
+  const hasTimeFilter = Boolean(availableDate || availableFrom || availableTo);
 
   return (
     <div className="py-12 bg-rose-50/30 min-h-screen">
@@ -173,21 +209,45 @@ export function Locations() {
 
           <div className="flex gap-2 ml-auto flex-wrap">
             <label className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-600 font-bold text-sm">
-              <Clock className="h-4 w-4 text-slate-400" />
-              <span className="whitespace-nowrap">可用時間</span>
+              <CalendarDays className="h-4 w-4 text-slate-400" />
+              <span className="whitespace-nowrap">日期</span>
               <input
-                type="time"
-                value={availableAt}
-                onChange={(e) => setAvailableAt(e.target.value)}
+                type="date"
+                value={availableDate}
+                onChange={(e) => setAvailableDate(e.target.value)}
                 className="bg-transparent text-slate-700 font-bold focus:outline-none"
               />
             </label>
-            {availableAt && (
+            <label className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-600 font-bold text-sm">
+              <Clock className="h-4 w-4 text-slate-400" />
+              <span className="whitespace-nowrap">起</span>
+              <input
+                type="time"
+                value={availableFrom}
+                onChange={(e) => setAvailableFrom(e.target.value)}
+                className="bg-transparent text-slate-700 font-bold focus:outline-none"
+              />
+            </label>
+            <label className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-600 font-bold text-sm">
+              <Clock className="h-4 w-4 text-slate-400" />
+              <span className="whitespace-nowrap">迄</span>
+              <input
+                type="time"
+                value={availableTo}
+                onChange={(e) => setAvailableTo(e.target.value)}
+                className="bg-transparent text-slate-700 font-bold focus:outline-none"
+              />
+            </label>
+            {hasTimeFilter && (
               <button
-                onClick={() => setAvailableAt("")}
+                onClick={() => {
+                  setAvailableDate("");
+                  setAvailableFrom("");
+                  setAvailableTo("");
+                }}
                 className="px-4 py-2 rounded-full font-bold text-sm bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
               >
-                清除時間
+                清除時段
               </button>
             )}
             {(hasNearbySites || isOpenOnly) && (
@@ -291,6 +351,15 @@ export function Locations() {
                         <span>{site.hours_note}</span>
                       </div>
                     )}
+                    {(transportationBySite[site.site_id] ?? []).slice(0, 2).map((item) => (
+                      <div key={item.trans_id} className="flex items-start p-1">
+                        <TrainFront className="h-4 w-4 mr-2 mt-0.5 text-sky-400 flex-shrink-0" />
+                        <span>
+                          <span className="font-extrabold text-slate-700">{item.trans_type}：</span>
+                          {item.description}
+                        </span>
+                      </div>
+                    ))}
                   </div>
 
                   {"navigation_url" in site && (site as DonationSiteNearby).navigation_url ? (

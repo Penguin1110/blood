@@ -1,11 +1,11 @@
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from math import cos, radians, asin, sin, sqrt
 from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Query
 
 from database import fetch_all
-from schemas import DonationSite, DonationSiteNearby
+from schemas import DonationSite, DonationSiteNearby, Transportation
 
 router = APIRouter(prefix="/sites", tags=["sites"])
 
@@ -121,6 +121,43 @@ def check_available_at(
     return target_time >= open_time or target_time <= close_time
 
 
+def check_open_on_date(open_days: str | None, target_date: date | None) -> bool:
+    if target_date is None:
+        return True
+    available_days = parse_open_days(open_days)
+    return available_days is None or target_date.isoweekday() in available_days
+
+
+def check_available_between(
+    open_time: time | None,
+    close_time: time | None,
+    start_time: time | None,
+    end_time: time | None,
+) -> bool:
+    if start_time is None and end_time is None:
+        return True
+    if open_time is None or close_time is None:
+        return False
+
+    start = start_time or end_time
+    end = end_time or start_time
+    if start is None or end is None:
+        return True
+
+    open_min = open_time.hour * 60 + open_time.minute
+    close_min = close_time.hour * 60 + close_time.minute
+    start_min = start.hour * 60 + start.minute
+    end_min = end.hour * 60 + end.minute
+
+    if end_min < start_min:
+        return False
+
+    if open_min <= close_min:
+        return open_min <= start_min and end_min <= close_min
+
+    return start_min >= open_min or end_min <= close_min
+
+
 def build_navigation_url(address: str) -> str:
     """
     產生 Google Maps 搜尋連結。
@@ -176,12 +213,15 @@ def site_row_to_response(row: dict, distance_km: float | None = None) -> dict:
 
 @router.get("", response_model=list[DonationSite])
 def list_sites(
+    available_date: date | None = Query(None, description="篩選日期，格式 YYYY-MM-DD"),
+    available_from: time | None = Query(None, description="開始時間，格式 HH:MM"),
+    available_to: time | None = Query(None, description="結束時間，格式 HH:MM"),
     available_at: time | None = Query(None, description="指定時間篩選，格式 HH:MM"),
 ):
     """
     讀取所有捐血站與捐血車資料。
     """
-    return fetch_all(
+    rows = fetch_all(
         """
         SELECT
             site_id,
@@ -199,14 +239,17 @@ def list_sites(
         """
     )
 
-    if available_at is None:
-        return rows
+    if available_at is not None and available_from is None and available_to is None:
+        available_from = available_at
+        available_to = available_at
 
     results = []
     for row in rows:
         open_time = _to_time(row.get("open_time"))
         close_time = _to_time(row.get("close_time"))
-        if check_available_at(open_time, close_time, available_at):
+        if not check_open_on_date(row.get("open_days"), available_date):
+            continue
+        if check_available_between(open_time, close_time, available_from, available_to):
             results.append(row)
 
     return results
@@ -245,6 +288,44 @@ def list_open_sites():
     return results
 
 
+@router.get("/transportation", response_model=list[Transportation])
+def list_all_transportation():
+    return fetch_all(
+        """
+        SELECT
+            trans_id,
+            site_id,
+            trans_type,
+            description,
+            sort_order
+        FROM transportation
+        ORDER BY site_id, sort_order, trans_id
+        """
+    )
+
+
+@router.get("/transportation/{site_id}", response_model=list[Transportation])
+def list_site_transportation(site_id: int):
+    site = fetch_all("SELECT site_id FROM donation_site WHERE site_id = %s", (site_id,))
+    if not site:
+        raise HTTPException(status_code=404, detail="找不到捐血據點")
+
+    return fetch_all(
+        """
+        SELECT
+            trans_id,
+            site_id,
+            trans_type,
+            description,
+            sort_order
+        FROM transportation
+        WHERE site_id = %s
+        ORDER BY sort_order, trans_id
+        """,
+        (site_id,),
+    )
+
+
 @router.get("/nearby", response_model=list[DonationSiteNearby])
 def search_nearby_sites(
     latitude: float = Query(..., ge=-90, le=90, description="使用者目前緯度"),
@@ -252,6 +333,9 @@ def search_nearby_sites(
     radius_km: float = Query(5.0, gt=0, le=100, description="搜尋半徑，單位公里"),
     open_only: bool = Query(False, description="是否只顯示目前開放中的據點"),
     category: str | None = Query(None, description="捐血站或捐血車"),
+    available_date: date | None = Query(None, description="篩選日期，格式 YYYY-MM-DD"),
+    available_from: time | None = Query(None, description="開始時間，格式 HH:MM"),
+    available_to: time | None = Query(None, description="結束時間，格式 HH:MM"),
     available_at: time | None = Query(None, description="指定時間篩選，格式 HH:MM"),
 ):
     """
@@ -302,6 +386,9 @@ def search_nearby_sites(
     )
 
     results = []
+    if available_at is not None and available_from is None and available_to is None:
+        available_from = available_at
+        available_to = available_at
 
     for row in rows:
         if row.get("latitude") is None or row.get("longitude") is None:
@@ -322,10 +409,14 @@ def search_nearby_sites(
         if open_only and not site["is_open"]:
             continue
 
-        if available_at is not None and not check_available_at(
+        if not check_open_on_date(row.get("open_days"), available_date):
+            continue
+
+        if not check_available_between(
             _to_time(row.get("open_time")),
             _to_time(row.get("close_time")),
-            available_at,
+            available_from,
+            available_to,
         ):
             continue
 

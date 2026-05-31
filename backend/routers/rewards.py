@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query, Response, status
 
-from database import execute, fetch_all, fetch_one
-from schemas import DonorRanking, GiftCreate, GiftUpdate, Reward
+from database import execute, fetch_all, fetch_one, get_connection
+from schemas import DonorRanking, GiftCreate, GiftUpdate, PointSummary, RedemptionCreate, RedemptionRecord, Reward, SiteGift, SiteGiftUpsert
 
 router = APIRouter(prefix="/rewards", tags=["rewards"])
 
@@ -65,27 +65,27 @@ def list_rewards(
     )
 
 
-@router.get("/donors/{donor_id}/eligible", response_model=list[Reward])
-def list_eligible_rewards(donor_id: int):
+@router.get("/donors/{donor_id}/points", response_model=PointSummary)
+def get_donor_points(donor_id: int):
     donor_points = fetch_one(
         """
         SELECT
-            u.donor_id,
-            GREATEST(COALESCE(SUM(h.hold_points), 0) - u.spent_points, 0) AS current_points
-        FROM `user` AS u
-        LEFT JOIN history_log AS h
-            ON h.donor_id = u.donor_id
-        WHERE u.donor_id = %s
-        GROUP BY u.donor_id, u.spent_points
+            donor_id,
+            cumulative_points,
+            current_points
+        FROM donor_points_summary
+        WHERE donor_id = %s
         """,
         (donor_id,),
     )
-
     if not donor_points:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="找不到捐血者",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到捐血者")
+    return donor_points
+
+
+@router.get("/donors/{donor_id}/eligible", response_model=list[Reward])
+def list_eligible_rewards(donor_id: int):
+    donor_points = get_donor_points(donor_id)
 
     return fetch_all(
         """
@@ -98,6 +98,156 @@ def list_eligible_rewards(donor_id: int):
         ORDER BY needed_points ASC, gift_id ASC
         """,
         (donor_points["current_points"],),
+    )
+
+
+@router.get("/donors/{donor_id}/redemptions", response_model=list[RedemptionRecord])
+def list_redemptions_by_donor(
+    donor_id: int,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    return fetch_all(
+        """
+        SELECT
+            redemption_id,
+            donor_id,
+            gift_id,
+            site_id,
+            points_spent,
+            redeemed_at
+        FROM redemption_record
+        WHERE donor_id = %s
+        ORDER BY redeemed_at DESC, redemption_id DESC
+        LIMIT %s OFFSET %s
+        """,
+        (donor_id, limit, offset),
+    )
+
+
+@router.post("/redeem", response_model=RedemptionRecord, status_code=status.HTTP_201_CREATED)
+def redeem_reward(payload: RedemptionCreate):
+    donor_points = get_donor_points(payload.donor_id)
+    reward = get_reward(payload.gift_id)
+
+    if donor_points["current_points"] < reward["needed_points"]:
+        raise HTTPException(status_code=400, detail="目前點數不足")
+
+    if payload.site_id is not None:
+        site = fetch_one("SELECT site_id FROM donation_site WHERE site_id = %s", (payload.site_id,))
+        if not site:
+            raise HTTPException(status_code=404, detail="找不到兌換據點")
+        site_gift = fetch_one(
+            "SELECT site_gift_id, quantity FROM site_gift WHERE site_id = %s AND gift_id = %s",
+            (payload.site_id, payload.gift_id),
+        )
+        if site_gift is not None and site_gift["quantity"] <= 0:
+            raise HTTPException(status_code=400, detail="此據點贈品庫存不足")
+
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO redemption_record
+                    (donor_id, gift_id, site_id, points_spent)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (payload.donor_id, payload.gift_id, payload.site_id, reward["needed_points"]),
+            )
+            redemption_id = cursor.lastrowid
+            cursor.execute(
+                """
+                INSERT INTO point_transaction
+                    (donor_id, source_type, source_id, points_delta, description)
+                VALUES (%s, 'redemption_record', %s, %s, %s)
+                """,
+                (
+                    payload.donor_id,
+                    redemption_id,
+                    -reward["needed_points"],
+                    f"兌換贈品：{reward['gift_item']}",
+                ),
+            )
+            if payload.site_id is not None:
+                cursor.execute(
+                    """
+                    UPDATE site_gift
+                    SET quantity = GREATEST(quantity - 1, 0)
+                    WHERE site_id = %s AND gift_id = %s AND quantity > 0
+                    """,
+                    (payload.site_id, payload.gift_id),
+                )
+            connection.commit()
+
+    return fetch_one(
+        """
+        SELECT
+            redemption_id,
+            donor_id,
+            gift_id,
+            site_id,
+            points_spent,
+            redeemed_at
+        FROM redemption_record
+        WHERE redemption_id = %s
+        """,
+        (redemption_id,),
+    )
+
+
+@router.get("/sites/{site_id}", response_model=list[SiteGift])
+def list_site_gifts(site_id: int):
+    site = fetch_one("SELECT site_id FROM donation_site WHERE site_id = %s", (site_id,))
+    if not site:
+        raise HTTPException(status_code=404, detail="找不到捐血據點")
+
+    return fetch_all(
+        """
+        SELECT
+            sg.site_gift_id,
+            sg.site_id,
+            sg.gift_id,
+            g.gift_item,
+            g.needed_points,
+            sg.quantity
+        FROM site_gift sg
+        JOIN gift g ON g.gift_id = sg.gift_id
+        WHERE sg.site_id = %s
+        ORDER BY g.needed_points ASC, g.gift_id ASC
+        """,
+        (site_id,),
+    )
+
+
+@router.put("/sites/{site_id}/{gift_id}", response_model=SiteGift)
+def upsert_site_gift(site_id: int, gift_id: int, payload: SiteGiftUpsert):
+    site = fetch_one("SELECT site_id FROM donation_site WHERE site_id = %s", (site_id,))
+    if not site:
+        raise HTTPException(status_code=404, detail="找不到捐血據點")
+    get_reward(gift_id)
+
+    existing = fetch_one(
+        "SELECT site_gift_id FROM site_gift WHERE site_id = %s AND gift_id = %s",
+        (site_id, gift_id),
+    )
+    if existing:
+        execute(
+            "UPDATE site_gift SET quantity = %s WHERE site_id = %s AND gift_id = %s",
+            (payload.quantity, site_id, gift_id),
+        )
+    else:
+        execute(
+            "INSERT INTO site_gift (site_id, gift_id, quantity) VALUES (%s, %s, %s)",
+            (site_id, gift_id, payload.quantity),
+        )
+
+    return fetch_one(
+        """
+        SELECT sg.site_gift_id, sg.site_id, sg.gift_id, g.gift_item, g.needed_points, sg.quantity
+        FROM site_gift sg JOIN gift g ON g.gift_id = sg.gift_id
+        WHERE sg.site_id = %s AND sg.gift_id = %s
+        """,
+        (site_id, gift_id),
     )
 
 

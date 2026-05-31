@@ -5,9 +5,11 @@ import {
   createDonation,
   deleteDonation,
   getDonations,
+  getSites,
   getUsers,
   updateDonation,
   type DonationRecord,
+  type DonationSite,
   type User,
 } from "@/api";
 import { useAdmin } from "@/context/AdminContext";
@@ -17,6 +19,7 @@ interface DonationForm {
   donation_date: string;
   address: string;
   category: string;
+  donor_weight: string;
 }
 
 const EMPTY_FORM: DonationForm = {
@@ -24,7 +27,28 @@ const EMPTY_FORM: DonationForm = {
   donation_date: "",
   address: "",
   category: "",
+  donor_weight: "",
 };
+
+const DONATION_CATEGORIES = [
+  "全血（250cc）",
+  "全血（500cc）",
+  "血小板",
+  "血漿",
+  "血小板血漿（單採）",
+];
+
+function intervalDaysForCategory(category: string) {
+  if (category === "全血（250cc）") return 60;
+  if (category === "全血（500cc）") return 90;
+  return 14;
+}
+
+function addDays(value: string, days: number) {
+  const d = new Date(`${value}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
 
 function inputCls(err?: string) {
   return `w-full bg-slate-50 border rounded-xl px-3 py-2 focus:outline-none font-medium text-slate-700 transition-colors ${
@@ -32,11 +56,46 @@ function inputCls(err?: string) {
   }`;
 }
 
-function validateDonation(f: DonationForm) {
+function validateDonation(
+  f: DonationForm,
+  donor: User | undefined,
+  donations: DonationRecord[],
+  editingId?: number | null,
+) {
   const errors: Record<string, string> = {};
   if (!f.donor_id) errors.donor_id = "請選擇捐血者";
   if (!f.donation_date) errors.donation_date = "請選擇捐血日期";
   else if (new Date(f.donation_date) > new Date()) errors.donation_date = "日期不得為未來";
+  if (!f.category) errors.category = "請選擇捐血種類";
+  const weight = Number(f.donor_weight);
+  if (!f.donor_weight) errors.donor_weight = "請輸入本次體重";
+  else if (!Number.isFinite(weight) || weight <= 0) errors.donor_weight = "體重必須大於 0";
+  else if (f.category === "全血（500cc）" && weight < 60) errors.donor_weight = "全血（500cc）需 60 公斤以上";
+  else if (f.category === "全血（250cc）" && weight < 45) errors.donor_weight = "全血（250cc）需 45 公斤以上";
+  if (donor && f.donation_date && f.category) {
+    const donorRecords = donations
+      .filter((d) => d.donor_id === donor.donor_id && d.record_id !== editingId)
+      .sort((a, b) => a.donation_date.localeCompare(b.donation_date) || a.record_id - b.record_id);
+    const previous = [...donorRecords].reverse().find((d) => d.donation_date < f.donation_date);
+    const next = donorRecords.find((d) => d.donation_date > f.donation_date);
+    const sameDay = donorRecords.find((d) => d.donation_date === f.donation_date);
+
+    if (sameDay) {
+      errors.donation_date = "同一天已有捐血紀錄";
+    } else if (previous?.category) {
+      const allowed = addDays(previous.donation_date, intervalDaysForCategory(previous.category));
+      if (f.donation_date < allowed) {
+        errors.donation_date = `距離上次 ${previous.category} 未達間隔，最早可捐日期為 ${allowed}`;
+      }
+    }
+
+    if (!errors.donation_date && next?.category) {
+      const allowedNext = addDays(f.donation_date, intervalDaysForCategory(f.category));
+      if (next.donation_date < allowedNext) {
+        errors.donation_date = `此紀錄會讓下一筆捐血未達間隔，下一筆最早應為 ${allowedNext}`;
+      }
+    }
+  }
   if (f.address.length > 200) errors.address = "地址不得超過 200 字";
   return errors;
 }
@@ -54,6 +113,7 @@ export function AdminDonations() {
   const { admin, logoutAdmin } = useAdmin();
   const [users, setUsers] = useState<User[]>([]);
   const [donations, setDonations] = useState<DonationRecord[]>([]);
+  const [sites, setSites] = useState<DonationSite[]>([]);
   const [form, setForm] = useState<DonationForm>(EMPTY_FORM);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -73,10 +133,11 @@ export function AdminDonations() {
       return;
     }
 
-    Promise.all([getUsers(), getDonations()])
-      .then(([u, d]) => {
+    Promise.all([getUsers(), getDonations(), getSites()])
+      .then(([u, d, s]) => {
         setUsers(u);
         setDonations(d);
+        setSites(s);
       })
       .catch(() => setError("無法載入管理資料"))
       .finally(() => setIsLoading(false));
@@ -85,9 +146,11 @@ export function AdminDonations() {
   if (!admin) return <Navigate to="/admin/login" replace />;
 
   const refreshDonations = async () => {
-    const d = await getDonations();
+    const [u, d] = await Promise.all([getUsers(), getDonations()]);
+    setUsers(u);
     setDonations(d);
   };
+
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -108,6 +171,7 @@ export function AdminDonations() {
       donation_date: record.donation_date,
       address: record.address ?? "",
       category: record.category ?? "",
+      donor_weight: record.donor_weight != null ? String(record.donor_weight) : "",
     });
     setErrors({});
     setMessage("");
@@ -116,7 +180,8 @@ export function AdminDonations() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const nextErrors = validateDonation(form);
+    const selectedDonor = userById.get(Number(form.donor_id));
+    const nextErrors = validateDonation(form, selectedDonor, donations, editingId);
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       return;
@@ -131,7 +196,8 @@ export function AdminDonations() {
         donor_id: Number(form.donor_id),
         donation_date: form.donation_date,
         ...(form.address ? { address: form.address } : {}),
-        ...(form.category ? { category: form.category } : {}),
+        category: form.category,
+        donor_weight: Number(form.donor_weight),
       };
 
       if (editingId) {
@@ -211,7 +277,7 @@ export function AdminDonations() {
                   <option value="">請選擇</option>
                   {users.map((u) => (
                     <option key={u.donor_id} value={u.donor_id}>
-                      {u.nickname ?? u.name}（#{u.donor_id}）
+                      {u.name}（#{u.donor_id}）
                     </option>
                   ))}
                 </select>
@@ -231,24 +297,38 @@ export function AdminDonations() {
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">捐血類型</label>
-                <select name="category" value={form.category} onChange={handleChange} className={inputCls()}>
-                  <option value="">請選擇（選填）</option>
-                  <option value="全血">全血</option>
-                  <option value="血小板">血小板</option>
-                  <option value="血漿">血漿</option>
-                  <option value="血小板血漿">血小板血漿</option>
+                <select name="category" value={form.category} onChange={handleChange} className={inputCls(errors.category)}>
+                  <option value="">請選擇</option>
+                  {DONATION_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
                 </select>
+                <ErrMsg msg={errors.category} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">本次體重（公斤）*</label>
+                <input
+                  type="number"
+                  name="donor_weight"
+                  value={form.donor_weight}
+                  onChange={handleChange}
+                  min="1"
+                  step="0.1"
+                  className={inputCls(errors.donor_weight)}
+                  placeholder="例如 60"
+                />
+                <ErrMsg msg={errors.donor_weight} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">地點</label>
-                <input
-                  name="address"
-                  value={form.address}
-                  onChange={handleChange}
-                  className={inputCls(errors.address)}
-                  placeholder="捐血地點（選填）"
-                  maxLength={200}
-                />
+                <select name="address" value={form.address} onChange={handleChange} className={inputCls(errors.address)}>
+                  <option value="">（不填）</option>
+                  {sites.map((s) => (
+                    <option key={s.site_id} value={s.loca_name}>
+                      {s.loca_name}
+                    </option>
+                  ))}
+                </select>
                 <ErrMsg msg={errors.address} />
               </div>
             </div>
@@ -297,6 +377,11 @@ export function AdminDonations() {
                           {d.category && (
                             <span className="inline-block bg-rose-100 text-rose-600 text-xs font-bold px-2 py-0.5 rounded">
                               {d.category}
+                            </span>
+                          )}
+                          {d.donor_weight != null && (
+                            <span className="inline-block bg-slate-200 text-slate-600 text-xs font-bold px-2 py-0.5 rounded">
+                              {d.donor_weight} kg
                             </span>
                           )}
                         </div>

@@ -36,7 +36,7 @@ Admin accounts are stored separately in the `admin` table, not in `user`.
 
 Seeded admin logins:
 
-- `admin1@blood.local` / `Admin123!`
+- `admin1@blood.local` / `**Admin123!**`
 - `admin2@blood.local` / `Admin123!`
 - `reviewer@blood.local` / `Review123!`
 

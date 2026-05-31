@@ -182,7 +182,7 @@ export function Layout() {
             <Link to="/" className="flex items-center gap-2 mb-4 md:mb-0">
               <Heart className="h-6 w-6 text-rose-400 fill-rose-400" />
               <span className="font-bold text-2xl tracking-tight text-white">
-                滴滴<span className="text-rose-400">愛心</span>
+                血盅紅我都吃<span className="text-rose-400"> BLOOD</span>
               </span>
             </Link>
             <p className="text-slate-400 text-center md:text-left max-w-sm">

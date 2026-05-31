@@ -49,13 +49,14 @@ def login(payload: LoginRequest):
             donor_id,
             name,
             nickname,
+            id_number,
             gender,
             birthday,
             blood_type,
             phone,
             email,
             last_date,
-            spent_points,
+            last_category,
             password_hash
         FROM `user`
         WHERE email = %s

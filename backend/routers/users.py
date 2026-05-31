@@ -19,13 +19,14 @@ def list_users(
             donor_id,
             name,
             nickname,
+            id_number,
             gender,
             birthday,
             blood_type,
             phone,
             email,
             last_date,
-            spent_points
+            last_category
         FROM `user`
         ORDER BY donor_id
         LIMIT %s OFFSET %s
@@ -43,13 +44,14 @@ def get_user(donor_id: int):
             donor_id,
             name,
             nickname,
+            id_number,
             gender,
             birthday,
             blood_type,
             phone,
             email,
             last_date,
-            spent_points
+            last_category
         FROM `user`
         WHERE donor_id = %s
         """,
@@ -82,6 +84,7 @@ def create_user(data: UserCreate):
                     (
                         name,
                         nickname,
+                        id_number,
                         gender,
                         birthday,
                         blood_type,
@@ -89,11 +92,12 @@ def create_user(data: UserCreate):
                         email,
                         password_hash
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         data.name,
                         data.nickname,
+                        data.id_number,
                         data.gender,
                         data.birthday,
                         data.blood_type,
@@ -104,25 +108,6 @@ def create_user(data: UserCreate):
                 )
 
                 new_donor_id = cursor.lastrowid
-
-                cursor.execute(
-                    """
-                    INSERT INTO history_log
-                    (
-                        donor_id,
-                        weight,
-                        location,
-                        drugs_record
-                    )
-                    VALUES (%s, %s, %s, %s)
-                    """,
-                    (
-                        new_donor_id,
-                        data.weight,
-                        data.location,
-                        data.drugs_record
-                    )
-                )
 
                 connection.commit()
 
@@ -147,7 +132,7 @@ def update_user(donor_id: int, data: UserUpdate):
     if not user:
         raise HTTPException(status_code=404, detail="找不到使用者")
 
-    ALLOWED_FIELDS = {"name", "nickname", "gender", "birthday", "blood_type", "phone", "email", "password_hash", "spent_points"}
+    ALLOWED_FIELDS = {"name", "nickname", "id_number", "gender", "birthday", "blood_type", "phone", "email", "password_hash"}
 
     fields = data.model_dump(exclude_unset=True)
 

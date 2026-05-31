@@ -1,11 +1,32 @@
 import { Heart, Activity, Users, ArrowRight, Gift, CalendarHeart, Award } from "lucide-react";
 import { Link } from "react-router";
 import { motion } from "motion/react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { getDonorPoints } from "@/api";
 import bloodDonationCarImage from "./blood donation carImage.png";
+
+function getLevel(pts: number) {
+  if (pts < 100) return "捐血新鮮人";
+  if (pts < 300) return "捐血小天使";
+  if (pts < 600) return "捐血達人";
+  return "捐血英雄";
+}
 
 export function Home() {
   const { user } = useAuth();
+  const [currentLevel, setCurrentLevel] = useState(user ? "捐血新鮮人" : "登入後查看");
+
+  useEffect(() => {
+    if (!user) {
+      setCurrentLevel("登入後查看");
+      return;
+    }
+
+    getDonorPoints(user.donor_id)
+      .then((points) => setCurrentLevel(getLevel(points.cumulative_points)))
+      .catch(() => setCurrentLevel("捐血新鮮人"));
+  }, [user]);
 
   return (
     <div className="flex flex-col">
@@ -81,7 +102,7 @@ export function Home() {
                 </div>
                 <div>
                   <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">目前等級</p>
-                  <p className="text-lg font-extrabold text-slate-800">捐血小天使</p>
+                  <p className="text-lg font-extrabold text-slate-800">{currentLevel}</p>
                 </div>
               </motion.div>
 

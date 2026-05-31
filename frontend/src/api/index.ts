@@ -15,64 +15,108 @@ export interface User {
   donor_id: number;
   name: string;
   nickname: string | null;
+  id_number: string | null;
   gender: string;
   birthday: string;
   blood_type: BloodType;
   phone: string;
   email: string;
   last_date: string | null;
-  spent_points: number;
+  last_category: string | null;
 }
 
 export interface UserCreate {
   name: string;
   nickname: string;
+  id_number: string;
   gender: string;
   birthday: string;
   blood_type: BloodType;
   phone: string;
   email: string;
   password: string;
-  weight?: number;
-  location?: string;
-  drugs_record?: string;
 }
 
 export interface UserUpdate {
   name?: string;
   nickname?: string;
+  id_number?: string;
   gender?: string;
   birthday?: string;
   blood_type?: BloodType;
   phone?: string;
   email?: string;
   password?: string;
-  spent_points?: number;
 }
 
 export interface HistoryLog {
   log_id: number;
   donor_id: number;
-  weight: number | null;
-  location: string | null;
-  drugs_record: string | null;
-  hold_points: number;
+  has_cold_or_infection: boolean;
+  had_dental_treatment: boolean;
+  had_surgery_or_transfusion: boolean;
+  taking_medication: boolean;
+  had_vaccine_or_injection: boolean;
+  pregnancy_or_postpartum: boolean;
+  unexplained_weight_loss: boolean;
+  had_tattoo_piercing: boolean;
+  traveled_epidemic_area: boolean;
+  contact_infectious_disease: boolean;
+  high_risk_behavior: boolean;
+  understood_process_and_risk: boolean;
+  consent_blood_donation: boolean;
+  consent_medical_reuse: boolean;
   recorded_at: string;
 }
 
 export interface HistoryLogCreate {
   donor_id: number;
-  weight?: number;
-  location?: string;
-  drugs_record?: string;
-  hold_points?: number;
+  has_cold_or_infection?: boolean;
+  had_dental_treatment?: boolean;
+  had_surgery_or_transfusion?: boolean;
+  taking_medication?: boolean;
+  had_vaccine_or_injection?: boolean;
+  pregnancy_or_postpartum?: boolean;
+  unexplained_weight_loss?: boolean;
+  had_tattoo_piercing?: boolean;
+  traveled_epidemic_area?: boolean;
+  contact_infectious_disease?: boolean;
+  high_risk_behavior?: boolean;
+  understood_process_and_risk?: boolean;
+  consent_blood_donation?: boolean;
+  consent_medical_reuse?: boolean;
 }
 
 export interface HistoryLogUpdate {
-  weight?: number;
-  location?: string;
-  drugs_record?: string;
-  hold_points?: number;
+  has_cold_or_infection?: boolean;
+  had_dental_treatment?: boolean;
+  had_surgery_or_transfusion?: boolean;
+  taking_medication?: boolean;
+  had_vaccine_or_injection?: boolean;
+  pregnancy_or_postpartum?: boolean;
+  unexplained_weight_loss?: boolean;
+  had_tattoo_piercing?: boolean;
+  traveled_epidemic_area?: boolean;
+  contact_infectious_disease?: boolean;
+  high_risk_behavior?: boolean;
+  understood_process_and_risk?: boolean;
+  consent_blood_donation?: boolean;
+  consent_medical_reuse?: boolean;
+}
+
+export interface Question {
+  question_id: number;
+  question_no: string;
+  question_text: string;
+  question_category: string;
+  answer_key: string;
+}
+
+export interface SurveyAnswer {
+  answer_id: number;
+  log_id: number;
+  question_id: number;
+  answer_value: boolean;
 }
 
 export interface DonationRecord {
@@ -81,6 +125,8 @@ export interface DonationRecord {
   donation_date: string;
   address: string | null;
   category: string | null;
+  donor_weight: number | null;
+  created_by: number | null;
 }
 
 export interface DonationRecordCreate {
@@ -88,6 +134,7 @@ export interface DonationRecordCreate {
   donation_date: string;
   address?: string;
   category?: string;
+  donor_weight?: number;
 }
 
 export interface DonationRecordUpdate {
@@ -95,6 +142,7 @@ export interface DonationRecordUpdate {
   donation_date?: string;
   address?: string;
   category?: string;
+  donor_weight?: number;
 }
 
 export interface DonationSite {
@@ -122,12 +170,44 @@ export interface Reward {
   needed_points: number;
 }
 
+export interface SiteGift {
+  site_gift_id: number;
+  site_id: number;
+  gift_id: number;
+  gift_item: string;
+  needed_points: number;
+  quantity: number;
+}
+
+export interface Transportation {
+  trans_id: number;
+  site_id: number;
+  trans_type: string;
+  description: string;
+  sort_order: number;
+}
+
 export interface DonorRanking {
   rank: number;
   donor_id: number;
   nickname: string;
   cumulative_points: number;
   current_points: number;
+}
+
+export interface PointSummary {
+  donor_id: number;
+  cumulative_points: number;
+  current_points: number;
+}
+
+export interface RedemptionRecord {
+  redemption_id: number;
+  donor_id: number;
+  gift_id: number;
+  site_id: number | null;
+  points_spent: number;
+  redeemed_at: string;
 }
 
 export interface LoginRequest {
@@ -234,8 +314,16 @@ export const deleteDonation = (record_id: number, adminId: number) =>
 
 // ── Sites ─────────────────────────────────────────────────────────────────────
 
-export const getSites = (opts?: { available_at?: string }) => {
+export const getSites = (opts?: {
+  available_date?: string;
+  available_from?: string;
+  available_to?: string;
+  available_at?: string;
+}) => {
   const p = new URLSearchParams();
+  if (opts?.available_date) p.set("available_date", opts.available_date);
+  if (opts?.available_from) p.set("available_from", opts.available_from);
+  if (opts?.available_to) p.set("available_to", opts.available_to);
   if (opts?.available_at) p.set("available_at", opts.available_at);
   const qs = p.toString();
   return request<DonationSite[]>(`/sites${qs ? `?${qs}` : ""}`);
@@ -249,6 +337,9 @@ export const getNearbySites = (params: {
   radius_km?: number;
   open_only?: boolean;
   category?: string;
+  available_date?: string;
+  available_from?: string;
+  available_to?: string;
   available_at?: string;
 }) => {
   const q = new URLSearchParams({
@@ -258,9 +349,18 @@ export const getNearbySites = (params: {
     open_only: (params.open_only ?? false).toString(),
   });
   if (params.category) q.set("category", params.category);
+  if (params.available_date) q.set("available_date", params.available_date);
+  if (params.available_from) q.set("available_from", params.available_from);
+  if (params.available_to) q.set("available_to", params.available_to);
   if (params.available_at) q.set("available_at", params.available_at);
   return request<DonationSiteNearby[]>(`/sites/nearby?${q}`);
 };
+
+export const getSiteTransportation = (site_id: number) =>
+  request<Transportation[]>(`/sites/transportation/${site_id}`);
+
+export const getAllTransportation = () =>
+  request<Transportation[]>("/sites/transportation");
 
 // ── Rewards ───────────────────────────────────────────────────────────────────
 
@@ -275,8 +375,20 @@ export const getRewards = (opts?: { q?: string; max_points?: number }) => {
 export const getEligibleRewards = (donor_id: number) =>
   request<Reward[]>(`/rewards/donors/${donor_id}/eligible`);
 
+export const getDonorPoints = (donor_id: number) =>
+  request<PointSummary>(`/rewards/donors/${donor_id}/points`);
+
 export const getDonorLeaderboard = (limit = 5) =>
   request<DonorRanking[]>(`/rewards/leaderboard?limit=${limit}`);
+
+export const getRedemptionsByDonor = (donor_id: number, limit = 50, offset = 0) =>
+  request<RedemptionRecord[]>(`/rewards/donors/${donor_id}/redemptions?limit=${limit}&offset=${offset}`);
+
+export const redeemReward = (data: { donor_id: number; gift_id: number; site_id?: number }) =>
+  request<RedemptionRecord>("/rewards/redeem", { method: "POST", body: json(data) });
+
+export const getSiteGifts = (site_id: number) =>
+  request<SiteGift[]>(`/rewards/sites/${site_id}`);
 
 // ── Health logs ───────────────────────────────────────────────────────────────
 
@@ -284,6 +396,12 @@ export const getHealthLogsByDonor = (donor_id: number, limit = 100, offset = 0) 
   request<HistoryLog[]>(
     `/health/donor/${donor_id}?limit=${limit}&offset=${offset}`
   );
+
+export const getQuestions = () =>
+  request<Question[]>("/health/questions");
+
+export const getSurveyAnswers = (log_id: number) =>
+  request<SurveyAnswer[]>(`/health/${log_id}/answers`);
 
 export const createHealthLog = (data: HistoryLogCreate) =>
   request<HistoryLog>("/health", { method: "POST", body: json(data) });
